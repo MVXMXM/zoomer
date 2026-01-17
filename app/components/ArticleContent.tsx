@@ -26,6 +26,7 @@ export const ArticleContent = ({ initialContent, onLoadingStateChange, onWordCou
   const [hasPerformedFirstZoom, setHasPerformedFirstZoom] = useState(false) // Track if first zoom happened to disable autofocus
   const [showDragTooltip, setShowDragTooltip] = useState<'contract' | 'expand' | null>(null) // Track which tooltip to show during drag
   const [lastGeneratedContent, setLastGeneratedContent] = useState('') // Track the last generated content to detect user edits
+  const [mousePosition, setMousePosition] = useState({ x: 132, y: 48 }) // Track mouse position for light effect
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const sliderRef = useRef<HTMLDivElement>(null)
 
@@ -205,23 +206,28 @@ export const ArticleContent = ({ initialContent, onLoadingStateChange, onWordCou
     autoResize()
   }, [content, autoResize])
 
-  // Update light position based on slider position
+  // Update light position based on mouse position
   React.useEffect(() => {
-    const updateLightPosition = () => {
-      const pointLight = document.getElementById('point-light')
-      const sliderLight = document.getElementById('slider-light')
-      
-      if (pointLight && sliderLight) {
-        // Calculate light position based on slider position
-        const lightX = 128 + sliderPosition * 1.5 // Adjust multiplier for sensitivity
-        
-        pointLight.setAttribute('x', lightX.toString())
-        sliderLight.setAttribute('lightingColor', '#00d4ff')
-      }
-    }
+    const pointLight = document.getElementById('point-light')
     
-    updateLightPosition()
-  }, [sliderPosition])
+    if (pointLight) {
+      pointLight.setAttribute('x', mousePosition.x.toString())
+      pointLight.setAttribute('y', mousePosition.y.toString())
+    }
+  }, [mousePosition])
+
+  // Handle mouse move on control bar
+  const handleControlBarMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setMousePosition({ x, y })
+  }, [])
+
+  // Reset light position when mouse leaves
+  const handleControlBarMouseLeave = useCallback(() => {
+    setMousePosition({ x: 132, y: 48 }) // Center position
+  }, [])
 
   const handleSliderDrag = useCallback((event: MouseEvent | TouchEvent) => {
     if (!isDragging || !sliderRef.current) return
@@ -408,15 +414,15 @@ export const ArticleContent = ({ initialContent, onLoadingStateChange, onWordCou
       >
         <div 
           ref={sliderRef}
-          className={`control-container relative w-[264px] h-24 rounded-full flex items-center justify-between px-4 backdrop-blur-[30px] border border-slate-200 ${
-            isLoading || activeButton ? 'cursor-not-allowed' : 'cursor-pointer'
-          }`}
+          className="control-container relative w-[264px] h-24 rounded-full flex items-center justify-between px-4 backdrop-blur-[30px] border border-slate-200"
           style={{
             '--border': '1',
             position: 'relative',
             background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(196, 196, 196, 0.5) 100%)',
             boxShadow: '0 0 40px 0 rgba(179, 179, 179, 0.15), 0 8px 32px 0 rgba(31, 38, 135, 0.2)'
           } as React.CSSProperties}
+          onMouseMove={handleControlBarMouseMove}
+          onMouseLeave={handleControlBarMouseLeave}
         >
           {/* Lighting border effect */}
           <div
