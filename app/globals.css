@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  --background: #f8fafc; /* slate-50 */
   --foreground: #1a1a1a;
   --font-sans: 'Archivo', sans-serif;
 }
@@ -13,17 +13,65 @@
 }
 
 body {
-  width: 100vw;
   min-height: 100vh;
-  margin: 0 auto;
-  overflow-x: hidden;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  margin: 0;
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+}
+
+/* Drag handle styles */
+.drag-handle-wrap {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.drag-handle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease;
+}
+
+.drag-handle:hover {
+  transform: scale(1.1);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  transform: scale(0.95);
+}
+
+.drag-handle span {
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  opacity: 0.9;
+}
+
+.drag-handle-shadow {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(34, 174, 255, 0.3);
+  filter: blur(12px);
+  pointer-events: none;
+}
+
+/* Loading text animation */
+.loading-text {
+  color: #94a3b8;
 }
 
 @layer utilities {
