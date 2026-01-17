@@ -1,11 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '',
-})
-
-export const runtime = 'edge'
-
 export async function POST(req: Request) {
   try {
     console.log('Rewrite API Route called')
@@ -30,6 +24,10 @@ export async function POST(req: Request) {
       return new Response('API key not configured', { status: 500 })
     }
 
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    })
+
     console.log('Using prompt:', prompt.substring(0, 100) + '...')
     console.log('Operation:', operation)
 
@@ -39,43 +37,42 @@ export async function POST(req: Request) {
 
     console.log('Calling Anthropic API...')
 
-        const response = await anthropic.messages.create({
-          model: 'claude-opus-4-1-20250805',
-          max_tokens: 1024,
-          temperature: 0.7,
-          messages: [{ role: 'user', content: systemPrompt }],
-          stream: true,
-        })
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      temperature: 0.7,
+      messages: [{ role: 'user', content: systemPrompt }],
+      stream: true,
+    })
 
-        console.log('API call successful, streaming response')
-        
-        const stream = new ReadableStream({
-          async start(controller) {
-            try {
-              for await (const chunk of response) {
-                if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-                  controller.enqueue(new TextEncoder().encode(chunk.delta.text))
-                }
-              }
-              controller.close()
-            } catch (error) {
-              console.error('Streaming error:', error)
-              controller.error(error)
-            }
-          },
-        })
-
-        return new Response(stream, {
-          headers: {
-            'Content-Type': 'text/plain',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
-        })
+    console.log('API call successful, streaming response')
     
-    return new Response('No text content received', { status: 500 })
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of response) {
+            if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+              controller.enqueue(new TextEncoder().encode(chunk.delta.text))
+            }
+          }
+          controller.close()
+        } catch (error) {
+          console.error('Streaming error:', error)
+          controller.error(error)
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    })
   } catch (error) {
     console.error('API Error:', error)
-    return new Response(`Internal Server Error: ${error.message}`, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Unknown error'
+    return new Response(`Internal Server Error: ${message}`, { status: 500 })
   }
 }
