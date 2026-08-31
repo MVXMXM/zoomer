@@ -19,7 +19,6 @@ export function ArticleContent(props: ZoomArticleProps) {
     error,
     activeButton,
     shouldExpand,
-    hasPerformedFirstZoom,
     textareaRef,
     handleRewrite,
   } = useArticleEditor(props)
@@ -111,7 +110,7 @@ export function ArticleContent(props: ZoomArticleProps) {
           zIndex: 2,
         }}
         placeholder="Type or paste text to apply semantic zoom"
-        autoFocus={!hasPerformedFirstZoom}
+        autoFocus
         disabled={isLoading || overlayOpen}
       />
 

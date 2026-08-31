@@ -65,7 +65,11 @@ export function ZoomWorkspace() {
     if (isEngaged && (hasPerformedZoom === false || lastOperation === null)) {
       return 'Select a zoom direction below'
     }
-    return 'Welcome to Zoomer'
+    return (
+      <>
+        Welcome to Zoomer <span className="font-normal">(v0.1.0)</span>
+      </>
+    )
   }
 
   return (

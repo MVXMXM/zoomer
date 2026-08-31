@@ -73,6 +73,10 @@ export function useArticleEditor({
     autoResize()
   }, [content, autoResize, isLoading, shouldExpand])
 
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   const handleRewrite = useCallback(
     async (
       operation: ZoomOperation,
