@@ -38,9 +38,8 @@ export async function POST(req: Request) {
     console.log('Calling Anthropic API...')
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      temperature: 0.7,
+      model: 'claude-sonnet-5',
+      max_tokens: 4096,
       messages: [{ role: 'user', content: systemPrompt }],
       stream: true,
     })
