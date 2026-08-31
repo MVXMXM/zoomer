@@ -181,26 +181,41 @@ export function WordBlurOverlay({
 
   return (
     <div className="absolute left-0 top-0 right-0 pointer-events-none" style={{ zIndex: 3, margin: 0, padding: 0 }}>
-      {particlesRef.current.map((p) => (
+      {streaming || newText.length === 0 ? (
         <div
-          key={p.id}
-          className="absolute left-0 top-0 text-slate-900 text-[20px] whitespace-pre-wrap"
+          className="text-shimmer text-[20px] whitespace-pre-wrap"
           style={{
             letterSpacing: '-0.01em',
             lineHeight: 1.625,
             fontWeight: 400,
             overflowWrap: 'normal',
             wordBreak: 'normal',
-            transform: `translate(${p.x}px, ${p.y}px)`,
-            opacity: p.opacity,
-            filter: p.kind === 'stay' ? undefined : `blur(${p.blur}px)`,
-            transformOrigin: 'left top',
-            willChange: 'transform, opacity, filter',
           }}
         >
-          {p.word}
+          {oldText}
         </div>
-      ))}
+      ) : (
+        particlesRef.current.map((p) => (
+          <div
+            key={p.id}
+            className="absolute left-0 top-0 text-slate-900 text-[20px] whitespace-pre-wrap"
+            style={{
+              letterSpacing: '-0.01em',
+              lineHeight: 1.625,
+              fontWeight: 400,
+              overflowWrap: 'normal',
+              wordBreak: 'normal',
+              transform: `translate(${p.x}px, ${p.y}px)`,
+              opacity: p.opacity,
+              filter: p.kind === 'stay' ? undefined : `blur(${p.blur}px)`,
+              transformOrigin: 'left top',
+              willChange: 'transform, opacity, filter',
+            }}
+          >
+            {p.word}
+          </div>
+        ))
+      )}
     </div>
   )
 }

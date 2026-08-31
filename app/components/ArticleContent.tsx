@@ -97,7 +97,9 @@ export function ArticleContent(props: ZoomArticleProps) {
         ref={textareaRef}
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        className="w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none px-0 pt-0 pb-[132px] relative text-slate-900"
+        className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none px-0 pt-0 pb-[132px] relative ${
+          isLoading && !overlayReady ? 'text-shimmer' : 'text-slate-900'
+        }`}
         style={{
           caretColor: '#06b6d4',
           height: shouldExpand || overlayOpen ? '100%' : 'auto',
