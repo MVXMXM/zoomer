@@ -23,7 +23,6 @@ export const ArticleContent = ({ initialContent, onLoadingStateChange, onWordCou
   const [oldContent, setOldContent] = useState('') // Store previous content for morphing effect
   const [hasText, setHasText] = useState(false) // Track if user has entered text to trigger full-height mode
   const [shouldExpand, setShouldExpand] = useState(false) // Controls when to actually show the expanded height (debounced)
-  const [hasPerformedFirstZoom, setHasPerformedFirstZoom] = useState(false) // Track if first zoom happened to disable autofocus
   const [showDragTooltip, setShowDragTooltip] = useState<'contract' | 'expand' | null>(null) // Track which tooltip to show during drag
   const [lastGeneratedContent, setLastGeneratedContent] = useState('') // Track the last generated content to detect user edits
   const [mousePosition, setMousePosition] = useState({ x: 132, y: 48 }) // Track mouse position for light effect
@@ -115,9 +114,6 @@ export const ArticleContent = ({ initialContent, onLoadingStateChange, onWordCou
     // Scroll to top for better UX
     scrollToTop()
     
-    // Mark that first zoom has been performed (to disable autofocus after this)
-    setHasPerformedFirstZoom(true)
-    
     try {
       const response = await fetch('/api/rewrite', {
         method: 'POST',
@@ -205,6 +201,11 @@ export const ArticleContent = ({ initialContent, onLoadingStateChange, onWordCou
   React.useEffect(() => {
     autoResize()
   }, [content, autoResize])
+
+  // React skips autoFocus during hydration, so the HTML attribute never focuses.
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
 
   // Update light position based on mouse position
   React.useEffect(() => {
@@ -368,7 +369,7 @@ export const ArticleContent = ({ initialContent, onLoadingStateChange, onWordCou
           transition: 'filter 1000ms ease-out'
         }}
         placeholder="Type or paste text to apply semantic zoom"
-        autoFocus={!hasPerformedFirstZoom}
+        autoFocus
         disabled={isLoading}
       />
 
