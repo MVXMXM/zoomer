@@ -84,6 +84,7 @@ export function useArticleEditor({
         onStart?: (oldText: string) => void
         onUpdate?: (text: string) => void
         onEnd?: (text: string) => void
+        onError?: () => void
       },
     ) => {
       if (!content.trim()) {
@@ -114,6 +115,7 @@ export function useArticleEditor({
         setError(`Failed to ${operation} text. Please try again.`)
         setTimeout(() => setError(null), 3000)
         setContent(oldText)
+        hooks?.onError?.()
       } finally {
         setIsLoading(false)
         setActiveButton(null)

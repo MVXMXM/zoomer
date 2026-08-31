@@ -69,6 +69,7 @@ export function ArticleContent(props: ZoomArticleProps) {
         setDestText(full)
         setStreaming(false)
       },
+      onError: onSettled,
     })
   }
 
@@ -125,7 +126,7 @@ export function ArticleContent(props: ZoomArticleProps) {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-red-50 text-red-700 px-4 py-2 rounded-lg shadow-lg border border-red-200 z-40"
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-red-50 text-red-700 px-4 py-2 rounded-lg shadow-lg border border-red-200 z-[10000]"
         >
           {error}
         </motion.div>
