@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { RewriteRange } from '@/app/lib/rewriteClient'
 import { pairWords, wordHomes, type WordHome } from '@/app/lib/zoomLayout'
 
 type WordParticle = {
@@ -27,8 +28,35 @@ type WordBlurOverlayProps = {
   newText: string
   width: number
   streaming: boolean
+  focusRange?: RewriteRange | null
   onReady: () => void
   onSettled: () => void
+}
+
+const TEXT_STYLE = {
+  letterSpacing: '-0.01em',
+  lineHeight: 1.625,
+  fontWeight: 400,
+  overflowWrap: 'normal',
+  wordBreak: 'normal',
+} as const
+
+function StreamingSource({ text, range }: { text: string; range?: RewriteRange | null }) {
+  if (!range) {
+    return (
+      <div className="text-shimmer text-[20px] whitespace-pre-wrap" style={TEXT_STYLE}>
+        {text}
+      </div>
+    )
+  }
+
+  return (
+    <div className="text-slate-900 text-[20px] whitespace-pre-wrap" style={TEXT_STYLE}>
+      {text.slice(0, range.start)}
+      <span className="text-shimmer">{text.slice(range.start, range.end)}</span>
+      {text.slice(range.end)}
+    </div>
+  )
 }
 
 function stayParticle(home: WordHome, prev?: WordParticle): WordParticle {
@@ -56,6 +84,7 @@ export function WordBlurOverlay({
   newText,
   width,
   streaming,
+  focusRange,
   onReady,
   onSettled,
 }: WordBlurOverlayProps) {
@@ -182,18 +211,7 @@ export function WordBlurOverlay({
   return (
     <div className="absolute left-0 top-0 right-0 pointer-events-none" style={{ zIndex: 3, margin: 0, padding: 0 }}>
       {streaming || newText.length === 0 ? (
-        <div
-          className="text-shimmer text-[20px] whitespace-pre-wrap"
-          style={{
-            letterSpacing: '-0.01em',
-            lineHeight: 1.625,
-            fontWeight: 400,
-            overflowWrap: 'normal',
-            wordBreak: 'normal',
-          }}
-        >
-          {oldText}
-        </div>
+        <StreamingSource text={oldText} range={focusRange} />
       ) : (
         particlesRef.current.map((p) => (
           <div

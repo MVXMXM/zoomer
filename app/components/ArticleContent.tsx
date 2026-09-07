@@ -6,6 +6,7 @@ import { ControlBar } from '@/app/components/ControlBar'
 import { WordBlurOverlay } from '@/app/components/WordBlurOverlay'
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
+import type { RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomArticleProps } from '@/app/types/zoom'
 
 const REST_HEIGHT = 'calc(100dvh - 96px - 32px)'
@@ -20,6 +21,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     activeButton,
     shouldExpand,
     textareaRef,
+    rememberSelection,
     handleRewrite,
   } = useArticleEditor(props)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -29,6 +31,7 @@ export function ArticleContent(props: ZoomArticleProps) {
   const [overlayOpen, setOverlayOpen] = useState(false)
   const [overlayReady, setOverlayReady] = useState(false)
   const [streaming, setStreaming] = useState(false)
+  const [focusRange, setFocusRange] = useState<RewriteRange | null>(null)
 
   useEffect(() => {
     onTransitioningChange?.(overlayOpen || isLoading)
@@ -54,13 +57,15 @@ export function ArticleContent(props: ZoomArticleProps) {
     setStreaming(false)
     setOldText('')
     setDestText('')
+    setFocusRange(null)
   }, [])
 
   const start = (operation: 'expand' | 'contract') => {
     void handleRewrite(operation, {
-      onStart: (source) => {
+      onStart: (source, range) => {
         setOldText(source)
         setDestText('')
+        setFocusRange(range)
         setOverlayReady(false)
         setOverlayOpen(true)
         setStreaming(true)
@@ -88,6 +93,7 @@ export function ArticleContent(props: ZoomArticleProps) {
           newText={destText}
           width={width}
           streaming={streaming}
+          focusRange={focusRange}
           onReady={onReady}
           onSettled={onSettled}
         />
@@ -98,7 +104,7 @@ export function ArticleContent(props: ZoomArticleProps) {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none px-0 pt-0 pb-[132px] relative ${
-          isLoading && !overlayReady ? 'text-shimmer' : 'text-slate-900'
+          isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
         }`}
         style={{
           caretColor: '#06b6d4',
@@ -115,6 +121,9 @@ export function ArticleContent(props: ZoomArticleProps) {
         placeholder="Type or paste text to apply semantic zoom"
         autoFocus
         disabled={isLoading || overlayOpen}
+        onSelect={rememberSelection}
+        onKeyUp={rememberSelection}
+        onMouseUp={rememberSelection}
       />
 
       <ControlBar

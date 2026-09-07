@@ -1,7 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { streamRewrite, wordCount } from '@/app/lib/rewriteClient'
+import {
+  selectionRange,
+  stitchRewrite,
+  streamRewrite,
+  wordCount,
+  type RewriteRange,
+} from '@/app/lib/rewriteClient'
 import type { ZoomArticleProps, ZoomOperation } from '@/app/types/zoom'
 
 export function useArticleEditor({
@@ -21,6 +27,7 @@ export function useArticleEditor({
   const [hasPerformedFirstZoom, setHasPerformedFirstZoom] = useState(false)
   const [lastGeneratedContent, setLastGeneratedContent] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const selectionRef = useRef<RewriteRange>({ start: 0, end: 0 })
 
   useEffect(() => {
     onLoadingStateChange?.(isLoading, activeButton)
@@ -77,11 +84,17 @@ export function useArticleEditor({
     textareaRef.current?.focus()
   }, [])
 
+  const rememberSelection = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    selectionRef.current = { start: el.selectionStart, end: el.selectionEnd }
+  }, [])
+
   const handleRewrite = useCallback(
     async (
       operation: ZoomOperation,
       hooks?: {
-        onStart?: (oldText: string) => void
+        onStart?: (oldText: string, range: RewriteRange | null) => void
         onUpdate?: (text: string) => void
         onEnd?: (text: string) => void
         onError?: () => void
@@ -93,6 +106,18 @@ export function useArticleEditor({
         return
       }
 
+      const el = textareaRef.current
+      const live = el
+        ? selectionRange(content, el.selectionStart, el.selectionEnd)
+        : null
+      const remembered = selectionRange(
+        content,
+        selectionRef.current.start,
+        selectionRef.current.end,
+      )
+      const range = live ?? remembered
+      const excerpt = range ? content.slice(range.start, range.end) : null
+
       const beforeCount = wordCount(content)
       const oldText = content
       setIsLoading(true)
@@ -100,16 +125,25 @@ export function useArticleEditor({
       setActiveButton(operation)
       setHasPerformedFirstZoom(true)
       textareaRef.current?.blur()
-      hooks?.onStart?.(oldText)
+      hooks?.onStart?.(oldText, range)
 
       try {
-        const result = await streamRewrite(oldText, operation, (full) => {
-          setContent(full)
-          hooks?.onUpdate?.(full)
-        })
-        onLoadingStateChange?.(false, operation, { beforeCount, afterCount: wordCount(result) })
-        setLastGeneratedContent(result)
-        hooks?.onEnd?.(result)
+        const result = await streamRewrite(
+          excerpt ?? oldText,
+          operation,
+          (chunk) => {
+            const next = excerpt ? stitchRewrite(oldText, range, chunk) : chunk
+            setContent(next)
+            hooks?.onUpdate?.(next)
+          },
+          excerpt ? { excerpt: true, context: oldText } : undefined,
+        )
+        if (!result.trim()) throw new Error('Empty rewrite')
+        const next = excerpt ? stitchRewrite(oldText, range, result) : result
+        onLoadingStateChange?.(false, operation, { beforeCount, afterCount: wordCount(next) })
+        setLastGeneratedContent(next)
+        setContent(next)
+        hooks?.onEnd?.(next)
       } catch (err) {
         console.error(`Error ${operation}ing text:`, err)
         setError(`Failed to ${operation} text. Please try again.`)
@@ -133,6 +167,7 @@ export function useArticleEditor({
     shouldExpand,
     hasPerformedFirstZoom,
     textareaRef,
+    rememberSelection,
     handleRewrite,
   }
 }
