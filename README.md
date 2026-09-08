@@ -7,7 +7,7 @@ Semantic zoom for text — expand or contract content while preserving meaning u
 - **Expand (Zoom Out)**: Add detail and clarity to your text
 - **Contract (Zoom In)**: Distill text to its core concepts
 - Streaming responses for real-time feedback
-- Keyboard shortcuts: Arrow keys to zoom
+- Keyboard shortcuts: `<` / `>` to zoom
 
 ## Tech Stack
 

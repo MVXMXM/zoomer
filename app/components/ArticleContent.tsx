@@ -299,21 +299,18 @@ export const ArticleContent = ({ initialContent, onLoadingStateChange, onWordCou
     }
   }, [isDragging, handleSliderDrag, handleSliderEnd])
 
-  // Add keyboard event listeners for arrow keys
+  // < / > match the left/right zoom controls without stealing caret keys
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Only trigger if not loading and not dragging, and no button is active
       if (isLoading || isDragging || activeButton) return
-      
-      // Check if user is focused on textarea
-      const isTextareaFocused = document.activeElement === textareaRef.current
+      if (event.metaKey || event.altKey || event.ctrlKey) return
       
       switch (event.key) {
-        case 'ArrowLeft':
+        case '<':
           event.preventDefault()
           handleContract()
           break
-        case 'ArrowRight':
+        case '>':
           event.preventDefault()
           handleExpand()
           break
