@@ -60,7 +60,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     setFocusRange(null)
   }, [])
 
-  const start = (operation: 'expand' | 'contract') => {
+  const start = useCallback((operation: 'expand' | 'contract') => {
     void handleRewrite(operation, {
       onStart: (source, range) => {
         setOldText(source)
@@ -76,7 +76,29 @@ export function ArticleContent(props: ZoomArticleProps) {
       },
       onError: onSettled,
     })
-  }
+  }, [handleRewrite, onSettled])
+
+  // < / > match the left/right zoom controls without stealing caret keys
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isLoading || overlayOpen || activeButton) return
+      if (event.metaKey || event.altKey || event.ctrlKey) return
+
+      switch (event.key) {
+        case '<':
+          event.preventDefault()
+          start('contract')
+          break
+        case '>':
+          event.preventDefault()
+          start('expand')
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isLoading, overlayOpen, activeButton, start])
 
   return (
     <div
