@@ -92,21 +92,6 @@ export function ControlBar({ visible, disabled, onContract, onExpand }: ControlB
   }, [isDragging, handleSliderDrag, handleSliderEnd])
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (disabled || isDragging) return
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault()
-        onContract()
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault()
-        onExpand()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [disabled, isDragging, onContract, onExpand])
-
-  useEffect(() => {
     if (disabled) setSliderPosition(0)
   }, [disabled])
 
