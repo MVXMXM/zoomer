@@ -23,6 +23,9 @@ export function ArticleContent(props: ZoomArticleProps) {
     textareaRef,
     rememberSelection,
     handleRewrite,
+    abortRewrite,
+    undo,
+    redo,
   } = useArticleEditor(props)
   const boxRef = useRef<HTMLDivElement>(null)
   const width = useBoxWidth(boxRef)
@@ -32,10 +35,12 @@ export function ArticleContent(props: ZoomArticleProps) {
   const [overlayReady, setOverlayReady] = useState(false)
   const [streaming, setStreaming] = useState(false)
   const [focusRange, setFocusRange] = useState<RewriteRange | null>(null)
+  const [morphKey, setMorphKey] = useState(0)
+  const [historyMorph, setHistoryMorph] = useState(false)
 
   useEffect(() => {
-    onTransitioningChange?.(overlayOpen || isLoading)
-  }, [overlayOpen, isLoading, onTransitioningChange])
+    onTransitioningChange?.(historyMorph ? false : overlayOpen || isLoading)
+  }, [overlayOpen, isLoading, historyMorph, onTransitioningChange])
 
   useEffect(() => {
     if (!overlayOpen) return
@@ -55,14 +60,28 @@ export function ArticleContent(props: ZoomArticleProps) {
     setOverlayOpen(false)
     setOverlayReady(false)
     setStreaming(false)
+    setHistoryMorph(false)
     setOldText('')
     setDestText('')
     setFocusRange(null)
   }, [])
 
+  const playMorph = useCallback((from: string, to: string) => {
+    setOldText(from)
+    setDestText(to)
+    setFocusRange(null)
+    setOverlayReady(false)
+    setStreaming(false)
+    setHistoryMorph(true)
+    setMorphKey((key) => key + 1)
+    setOverlayOpen(true)
+    onTransitioningChange?.(false)
+  }, [onTransitioningChange])
+
   const start = useCallback((operation: 'expand' | 'contract') => {
     void handleRewrite(operation, {
       onStart: (source, range) => {
+        setHistoryMorph(false)
         setOldText(source)
         setDestText('')
         setFocusRange(range)
@@ -81,8 +100,31 @@ export function ArticleContent(props: ZoomArticleProps) {
   // < / > match the left/right zoom controls without stealing caret keys
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      const withCmd = event.metaKey || event.ctrlKey
+      if (withCmd && !event.altKey) {
+        const key = event.key.toLowerCase()
+        const redoKey = (key === 'z' && event.shiftKey) || (key === 'y' && event.ctrlKey && !event.metaKey)
+        if (redoKey) {
+          const step = redo()
+          if (!step) return
+          event.preventDefault()
+          playMorph(step.from, step.to)
+          return
+        }
+        if (key === 'z') {
+          if (abortRewrite()) {
+            event.preventDefault()
+            return
+          }
+          const step = undo()
+          if (!step) return
+          event.preventDefault()
+          playMorph(step.from, step.to)
+        }
+        return
+      }
+
       if (isLoading || overlayOpen || activeButton) return
-      if (event.metaKey || event.altKey || event.ctrlKey) return
 
       switch (event.key) {
         case '<':
@@ -98,7 +140,7 @@ export function ArticleContent(props: ZoomArticleProps) {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isLoading, overlayOpen, activeButton, start])
+  }, [isLoading, overlayOpen, activeButton, start, abortRewrite, undo, redo, playMorph])
 
   return (
     <div
@@ -111,6 +153,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     >
       {overlayOpen && width > 0 && (
         <WordBlurOverlay
+          key={morphKey}
           oldText={oldText}
           newText={destText}
           width={width}

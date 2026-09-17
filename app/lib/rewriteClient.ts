@@ -39,7 +39,7 @@ export async function streamRewrite(
   text: string,
   operation: ZoomOperation,
   onUpdate: (full: string) => void,
-  options?: { excerpt?: boolean; context?: string },
+  options?: { excerpt?: boolean; context?: string; signal?: AbortSignal },
 ): Promise<string> {
   const response = await fetch('/api/rewrite', {
     method: 'POST',
@@ -50,6 +50,7 @@ export async function streamRewrite(
       excerpt: Boolean(options?.excerpt),
       context: options?.context,
     }),
+    signal: options?.signal,
   })
 
   if (!response.ok || !response.body) {
