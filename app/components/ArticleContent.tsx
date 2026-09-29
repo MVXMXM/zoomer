@@ -97,45 +97,39 @@ export function ArticleContent(props: ZoomArticleProps) {
     })
   }, [handleRewrite, onSettled])
 
-  // < / > match the left/right zoom controls without stealing caret keys
+  // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const withCmd = event.metaKey || event.ctrlKey
-      if (withCmd && !event.altKey) {
-        const key = event.key.toLowerCase()
-        const redoKey = (key === 'z' && event.shiftKey) || (key === 'y' && event.ctrlKey && !event.metaKey)
-        if (redoKey) {
-          const step = redo()
-          if (!step) return
+      if (!withCmd || event.altKey) return
+
+      const key = event.key.toLowerCase()
+      const redoKey = (key === 'z' && event.shiftKey) || (key === 'y' && event.ctrlKey && !event.metaKey)
+      if (redoKey) {
+        const step = redo()
+        if (!step) return
+        event.preventDefault()
+        playMorph(step.from, step.to)
+        return
+      }
+      if (key === 'z') {
+        if (abortRewrite()) {
           event.preventDefault()
-          playMorph(step.from, step.to)
           return
         }
-        if (key === 'z') {
-          if (abortRewrite()) {
-            event.preventDefault()
-            return
-          }
-          const step = undo()
-          if (!step) return
-          event.preventDefault()
-          playMorph(step.from, step.to)
-        }
+        const step = undo()
+        if (!step) return
+        event.preventDefault()
+        playMorph(step.from, step.to)
         return
       }
 
+      const subtract = key === '-' || event.code === 'Minus' || event.code === 'NumpadSubtract'
+      const add = key === '+' || key === '=' || event.code === 'Equal' || event.code === 'NumpadAdd'
+      if (!subtract && !add) return
+      event.preventDefault()
       if (isLoading || overlayOpen || activeButton) return
-
-      switch (event.key) {
-        case '<':
-          event.preventDefault()
-          start('contract')
-          break
-        case '>':
-          event.preventDefault()
-          start('expand')
-          break
-      }
+      start(add ? 'expand' : 'contract')
     }
 
     document.addEventListener('keydown', handleKeyDown)
