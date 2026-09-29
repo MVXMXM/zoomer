@@ -97,7 +97,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     })
   }, [handleRewrite, onSettled])
 
-  // ⌘- zooms out, ⌘+ zooms in. = is the unshifted plus key.
+  // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const withCmd = event.metaKey || event.ctrlKey
@@ -124,12 +124,12 @@ export function ArticleContent(props: ZoomArticleProps) {
         return
       }
 
-      const zoomOut = key === '-' || event.code === 'Minus' || event.code === 'NumpadSubtract'
-      const zoomIn = key === '+' || key === '=' || event.code === 'Equal' || event.code === 'NumpadAdd'
-      if (!zoomOut && !zoomIn) return
+      const subtract = key === '-' || event.code === 'Minus' || event.code === 'NumpadSubtract'
+      const add = key === '+' || key === '=' || event.code === 'Equal' || event.code === 'NumpadAdd'
+      if (!subtract && !add) return
       event.preventDefault()
       if (isLoading || overlayOpen || activeButton) return
-      start(zoomOut ? 'expand' : 'contract')
+      start(add ? 'expand' : 'contract')
     }
 
     document.addEventListener('keydown', handleKeyDown)
