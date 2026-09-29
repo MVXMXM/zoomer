@@ -4,15 +4,9 @@ Semantic zoom for text — expand or contract content while preserving meaning u
 
 ## Features
 
-- **Extrapolate (Zoom Out)**: Add detail and clarity to your text
-- **Distill (Zoom In)**: Simplify text to its core concepts
-- Streaming responses for real-time feedback
-- Keyboard shortcuts: `<` / `>` to zoom
+- **Extrapolate (zoom out `⌘-`)**: Add detail and clarity to your text
+- **Distill (zoom in `⌘+`)**: Simplify text to its core concepts
 
-## Tech Stack
+## References
 
-- Next.js 15 with Turbopack
-- React 19
-- Tailwind CSS v4
-- Framer Motion
-- Anthropic Claude API
+- Shen, J., Marquardt, N., Romat, H., Hinckley, K., Riche, N., & Chevalier, F. (2026). [Texterial: A Text-as-Material Interaction Paradigm for LLM-Mediated Writing](https://arxiv.org/pdf/2603.00452). *Proceedings of the 2026 CHI Conference on Human Factors in Computing Systems*.
