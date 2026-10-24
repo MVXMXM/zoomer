@@ -7,7 +7,7 @@ import { WordBlurOverlay } from '@/app/components/WordBlurOverlay'
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
-import type { ZoomArticleProps } from '@/app/types/zoom'
+import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const REST_HEIGHT = 'calc(100dvh - 96px - 32px)'
 
@@ -79,8 +79,8 @@ export function ArticleContent(props: ZoomArticleProps) {
     onTransitioningChange?.(false)
   }, [onTransitioningChange])
 
-  const start = useCallback((operation: 'expand' | 'contract') => {
-    void handleRewrite(operation, {
+  const start = useCallback((operation: ZoomOperation, degree: ZoomDegree = 2) => {
+    void handleRewrite(operation, degree, {
       onStart: (source, range) => {
         setHistoryMorph(false)
         setOldText(source)
@@ -193,8 +193,7 @@ export function ArticleContent(props: ZoomArticleProps) {
         <ControlBar
           visible
           disabled={isLoading || !!activeButton}
-          onContract={() => start('contract')}
-          onExpand={() => start('expand')}
+          onZoom={start}
         />
       )}
 
