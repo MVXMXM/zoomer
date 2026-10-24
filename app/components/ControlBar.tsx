@@ -116,15 +116,22 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
       <div
         aria-hidden={!visible}
         inert={!visible}
-        className="fixed z-50"
+        className="zoom-control-popover fixed z-50"
         style={{
           zIndex: 9999,
           left: anchor?.x ?? '50%',
           top: anchor?.y ?? '100%',
           opacity: visible ? 1 : 0,
           pointerEvents: visible ? 'auto' : 'none',
-          transform: `translate3d(-50%, ${visible ? '0' : anchor?.placement === 'above' ? '6px' : '-6px'}, 0)`,
-          transition: 'opacity 180ms ease-out, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+          transformOrigin: anchor?.placement === 'above' ? '50% 100%' : '50% 0%',
+          transform: visible
+            ? 'translate3d(-50%, 0, 0) scale3d(1, 1, 1)'
+            : `translate3d(-50%, ${anchor?.placement === 'above' ? '10px' : '-10px'}, 0) scale3d(0.86, 0.62, 1)`,
+          filter: visible ? 'blur(0)' : 'blur(3px)',
+          transition: visible
+            ? 'opacity 180ms ease-out, transform 520ms cubic-bezier(0.18, 1.32, 0.25, 1), filter 260ms ease-out'
+            : 'opacity 150ms ease-in, transform 240ms cubic-bezier(0.4, 0, 0.6, 1), filter 180ms ease-in',
+          willChange: 'transform, opacity, filter',
         }}
       >
         <div

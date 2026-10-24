@@ -132,6 +132,11 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .zoom-control-popover {
+    filter: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
   .text-shimmer {
     animation: none;
     background: none;
