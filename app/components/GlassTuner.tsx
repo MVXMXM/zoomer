@@ -30,7 +30,7 @@ export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
   blur: 0.4,
   glow: 1,
   edgeHighlight: 0,
-  specularAngle: 45,
+  specularAngle: 0,
 }
 
 type Dial = {
