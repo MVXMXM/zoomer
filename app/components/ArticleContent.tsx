@@ -144,6 +144,7 @@ export function ArticleContent(props: ZoomArticleProps) {
   const showDock = zoomPhase === 'arrive' || zoomPhase === 'review'
   const overlayPhase: BlurPhase = historyMorph ? 'history' : zoomPhase === 'idle' ? 'stream' : zoomPhase
   const [controlAnchor, setControlAnchor] = useState<ControlAnchor | null>(null)
+  const selectionAnchorFrameRef = useRef(0)
 
   const updateControlAnchor = useCallback(() => {
     const textarea = textareaRef.current
@@ -154,8 +155,13 @@ export function ArticleContent(props: ZoomArticleProps) {
 
   const handleSelectionChange = useCallback(() => {
     rememberSelection()
-    updateControlAnchor()
+    cancelAnimationFrame(selectionAnchorFrameRef.current)
+    selectionAnchorFrameRef.current = requestAnimationFrame(() => {
+      selectionAnchorFrameRef.current = requestAnimationFrame(updateControlAnchor)
+    })
   }, [rememberSelection, updateControlAnchor])
+
+  useEffect(() => () => cancelAnimationFrame(selectionAnchorFrameRef.current), [])
 
   useEffect(() => {
     if (!hasSelection || overlayOpen) return
