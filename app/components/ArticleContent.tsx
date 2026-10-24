@@ -10,6 +10,103 @@ import type { RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomArticleProps } from '@/app/types/zoom'
 
 const REST_HEIGHT = 'calc(100dvh - 96px - 32px)'
+const CONTROL_WIDTH = 264
+const CONTROL_HEIGHT = 96
+const CONTROL_GAP = 12
+const VIEWPORT_MARGIN = 12
+
+type ControlAnchor = {
+  x: number
+  y: number
+  placement: 'above' | 'below'
+}
+
+function getSelectionRects(textarea: HTMLTextAreaElement) {
+  const start = textarea.selectionStart
+  const end = textarea.selectionEnd
+  if (start === end) return []
+
+  const style = window.getComputedStyle(textarea)
+  const mirror = document.createElement('div')
+  const selection = document.createElement('span')
+  const rect = textarea.getBoundingClientRect()
+  const copiedProperties = [
+    'boxSizing',
+    'fontFamily',
+    'fontSize',
+    'fontStyle',
+    'fontWeight',
+    'letterSpacing',
+    'lineHeight',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'borderTopWidth',
+    'borderRightWidth',
+    'borderBottomWidth',
+    'borderLeftWidth',
+    'textAlign',
+    'textIndent',
+    'textTransform',
+    'wordSpacing',
+  ] as const
+
+  copiedProperties.forEach((property) => {
+    mirror.style[property] = style[property]
+  })
+  Object.assign(mirror.style, {
+    position: 'fixed',
+    visibility: 'hidden',
+    pointerEvents: 'none',
+    overflow: 'hidden',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: style.overflowWrap,
+    wordBreak: style.wordBreak,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    left: `${rect.left - textarea.scrollLeft}px`,
+    top: `${rect.top - textarea.scrollTop}px`,
+  })
+
+  mirror.append(document.createTextNode(textarea.value.slice(0, start)))
+  selection.textContent = textarea.value.slice(start, end)
+  mirror.append(selection)
+  // Keep the last selected line measurable when the selection ends in a newline.
+  mirror.append(document.createTextNode('\u200b'))
+  document.body.append(mirror)
+  const rects = Array.from(selection.getClientRects())
+  mirror.remove()
+  return rects
+}
+
+function getControlAnchor(textarea: HTMLTextAreaElement): ControlAnchor | null {
+  const rects = getSelectionRects(textarea)
+  if (!rects.length) return null
+
+  const first = rects[0]
+  const last = rects[rects.length - 1]
+  const left = Math.min(...rects.map((rect) => rect.left))
+  const right = Math.max(...rects.map((rect) => rect.right))
+  const x = Math.min(
+    window.innerWidth - VIEWPORT_MARGIN - CONTROL_WIDTH / 2,
+    Math.max(VIEWPORT_MARGIN + CONTROL_WIDTH / 2, (left + right) / 2),
+  )
+  const belowY = last.bottom + CONTROL_GAP
+  const aboveY = first.top - CONTROL_GAP - CONTROL_HEIGHT
+  const roomBelow = belowY + CONTROL_HEIGHT <= window.innerHeight - VIEWPORT_MARGIN
+  const roomAbove = aboveY >= VIEWPORT_MARGIN
+
+  if (roomBelow || !roomAbove) {
+    return {
+      x,
+      y: Math.min(window.innerHeight - VIEWPORT_MARGIN - CONTROL_HEIGHT, Math.max(VIEWPORT_MARGIN, belowY)),
+      placement: 'below',
+    }
+  }
+
+  return { x, y: aboveY, placement: 'above' }
+}
 
 export function ArticleContent(props: ZoomArticleProps) {
   const { onTransitioningChange } = props
@@ -38,6 +135,35 @@ export function ArticleContent(props: ZoomArticleProps) {
   const [focusRange, setFocusRange] = useState<RewriteRange | null>(null)
   const [morphKey, setMorphKey] = useState(0)
   const [historyMorph, setHistoryMorph] = useState(false)
+  const [controlAnchor, setControlAnchor] = useState<ControlAnchor | null>(null)
+
+  const updateControlAnchor = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea || textarea.selectionStart === textarea.selectionEnd) return
+    const nextAnchor = getControlAnchor(textarea)
+    if (nextAnchor) setControlAnchor(nextAnchor)
+  }, [textareaRef])
+
+  const handleSelectionChange = useCallback(() => {
+    rememberSelection()
+    updateControlAnchor()
+  }, [rememberSelection, updateControlAnchor])
+
+  useEffect(() => {
+    if (!hasSelection || overlayOpen) return
+    let frame = 0
+    const update = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(updateControlAnchor)
+    }
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [hasSelection, overlayOpen, updateControlAnchor])
 
   useEffect(() => {
     onTransitioningChange?.(historyMorph ? false : overlayOpen || isLoading)
@@ -164,9 +290,9 @@ export function ArticleContent(props: ZoomArticleProps) {
         value={content}
         onChange={(e) => {
           setContent(e.target.value)
-          rememberSelection()
+          handleSelectionChange()
         }}
-        className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none px-0 pt-0 pb-[132px] relative ${
+        className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
           isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
         }`}
         style={{
@@ -184,19 +310,18 @@ export function ArticleContent(props: ZoomArticleProps) {
         placeholder="Type or paste text to apply semantic zoom"
         autoFocus
         disabled={isLoading || overlayOpen}
-        onSelect={rememberSelection}
-        onKeyUp={rememberSelection}
-        onMouseUp={rememberSelection}
+        onSelect={handleSelectionChange}
+        onKeyUp={handleSelectionChange}
+        onMouseUp={handleSelectionChange}
       />
 
-      {hasSelection && !overlayOpen && (
-        <ControlBar
-          visible
-          disabled={isLoading || !!activeButton}
-          onContract={() => start('contract')}
-          onExpand={() => start('expand')}
-        />
-      )}
+      <ControlBar
+        visible={hasSelection && !overlayOpen && !!controlAnchor}
+        anchor={controlAnchor}
+        disabled={isLoading || !!activeButton}
+        onContract={() => start('contract')}
+        onExpand={() => start('expand')}
+      />
 
       {error && (
         <motion.div
