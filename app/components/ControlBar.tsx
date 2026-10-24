@@ -218,7 +218,7 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
             '--glass-glow': glassSettings.glow,
             '--glass-glow-wide': glassSettings.glow * 0.45,
             '--glass-edge-highlight': glassSettings.edgeHighlight,
-            '--glass-rim': 0.18 + glassSettings.edgeHighlight * 0.82,
+            '--glass-rim': 0.38 + glassSettings.edgeHighlight * 0.62,
             '--glass-specular-angle': `${glassSettings.specularAngle}deg`,
             '--glass-specular-cross-angle': `${(glassSettings.specularAngle + 90) % 360}deg`,
             '--glass-icon-size': '29px',
