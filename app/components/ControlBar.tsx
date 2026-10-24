@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Microscope, MoveHorizontal, Telescope } from 'lucide-react'
+import { DEFAULT_GLASS_SETTINGS, GlassTuner, type GlassSettings } from '@/app/components/GlassTuner'
 import type { ZoomOperation } from '@/app/types/zoom'
 
 type ControlBarProps = {
@@ -20,7 +21,9 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [showDragTooltip, setShowDragTooltip] = useState<ZoomOperation | null>(null)
+  const [glassSettings, setGlassSettings] = useState<GlassSettings>(DEFAULT_GLASS_SETTINGS)
   const sliderRef = useRef<HTMLDivElement>(null)
+  const showGlassTuner = process.env.NODE_ENV === 'development'
 
   const handleSliderDrag = useCallback(
     (event: MouseEvent | TouchEvent) => {
@@ -113,6 +116,8 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
         </defs>
       </svg>
 
+      {showGlassTuner && <GlassTuner value={glassSettings} onChange={setGlassSettings} />}
+
       <div
         aria-hidden={!visible}
         inert={!visible}
@@ -131,8 +136,18 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
           className="control-container liquid-glass relative w-[264px] h-24 rounded-full flex items-center justify-between px-4"
           style={{
             position: 'relative',
-            boxShadow: '0 10px 20px -16px rgba(15, 23, 42, 0.28), 0 1px 3px rgba(15, 23, 42, 0.12)',
-          }}
+            '--glass-fill': glassSettings.fill,
+            '--glass-blur': `${glassSettings.blur}px`,
+            '--glass-saturation': `${glassSettings.saturation}%`,
+            '--glass-contrast': `${glassSettings.contrast}%`,
+            '--glass-top-shade': glassSettings.topShade,
+            '--glass-bottom-light': glassSettings.bottomLight,
+            '--glass-rim': glassSettings.rim,
+            '--glass-highlight': glassSettings.highlight,
+            '--glass-shadow': glassSettings.shadow,
+            '--glass-shadow-soft': glassSettings.shadow * 0.43,
+            '--glass-icon-size': `${glassSettings.iconSize}px`,
+          } as React.CSSProperties}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
             e.preventDefault()
@@ -147,7 +162,7 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
             disabled={disabled}
             type="button"
           >
-            <Microscope className="w-[29px] h-[29px] text-[#111318]" strokeWidth={2.35} />
+            <Microscope className="glass-action-icon text-[#111318]" strokeWidth={2.35} />
             <div
               className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
                 showDragTooltip === 'contract'
@@ -169,7 +184,7 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
             disabled={disabled}
             type="button"
           >
-            <Telescope className="w-[29px] h-[29px] text-[#111318]" strokeWidth={2.35} />
+            <Telescope className="glass-action-icon text-[#111318]" strokeWidth={2.35} />
             <div
               className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
                 showDragTooltip === 'expand'
