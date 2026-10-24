@@ -163,28 +163,30 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
               yChannelSelector="G"
             />
           </filter>
-          <filter id={filterId} x="-20%" y="-30%" width="140%" height="160%" colorInterpolationFilters="sRGB">
-            <feImage href={lensMap || undefined} x="0" y="0" width="264" height="96" preserveAspectRatio="none" result="lens-map" />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="lens-map"
-              scale={glassSettings.refraction}
-              xChannelSelector="R"
-              yChannelSelector="G"
-              result="displaced"
-            />
-            <feOffset in="displaced" dx={-glassSettings.chroma} result="red-offset" />
-            <feFlood floodColor="#ff453a" floodOpacity={Math.min(0.32, glassSettings.chroma * 0.1)} result="red-color" />
-            <feComposite in="red-color" in2="red-offset" operator="in" result="red-fringe" />
-            <feOffset in="displaced" dx={glassSettings.chroma} result="blue-offset" />
-            <feFlood floodColor="#32ade6" floodOpacity={Math.min(0.28, glassSettings.chroma * 0.09)} result="blue-color" />
-            <feComposite in="blue-color" in2="blue-offset" operator="in" result="blue-fringe" />
-            <feMerge>
-              <feMergeNode in="red-fringe" />
-              <feMergeNode in="blue-fringe" />
-              <feMergeNode in="displaced" />
-            </feMerge>
-          </filter>
+          {lensMap && (
+            <filter id={filterId} x="-20%" y="-30%" width="140%" height="160%" colorInterpolationFilters="sRGB">
+              <feImage href={lensMap} x="0" y="0" width="264" height="96" preserveAspectRatio="none" result="lens-map" />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="lens-map"
+                scale={glassSettings.refraction}
+                xChannelSelector="R"
+                yChannelSelector="G"
+                result="displaced"
+              />
+              <feOffset in="displaced" dx={-glassSettings.chroma} result="red-offset" />
+              <feFlood floodColor="#ff453a" floodOpacity={Math.min(0.32, glassSettings.chroma * 0.1)} result="red-color" />
+              <feComposite in="red-color" in2="red-offset" operator="in" result="red-fringe" />
+              <feOffset in="displaced" dx={glassSettings.chroma} result="blue-offset" />
+              <feFlood floodColor="#32ade6" floodOpacity={Math.min(0.28, glassSettings.chroma * 0.09)} result="blue-color" />
+              <feComposite in="blue-color" in2="blue-offset" operator="in" result="blue-fringe" />
+              <feMerge>
+                <feMergeNode in="red-fringe" />
+                <feMergeNode in="blue-fringe" />
+                <feMergeNode in="displaced" />
+              </feMerge>
+            </filter>
+          )}
         </defs>
       </svg>
 
