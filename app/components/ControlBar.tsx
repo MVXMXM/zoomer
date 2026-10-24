@@ -131,7 +131,7 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
           className="control-container liquid-glass relative w-[264px] h-24 rounded-full flex items-center justify-between px-4"
           style={{
             position: 'relative',
-            boxShadow: '0 14px 28px -18px rgba(15, 23, 42, 0.32), 0 2px 8px -4px rgba(15, 23, 42, 0.18)',
+            boxShadow: '0 10px 20px -16px rgba(15, 23, 42, 0.28), 0 1px 3px rgba(15, 23, 42, 0.12)',
           }}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
@@ -147,7 +147,7 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
             disabled={disabled}
             type="button"
           >
-            <Microscope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+            <Microscope className="w-[29px] h-[29px] text-[#111318]" strokeWidth={2.35} />
             <div
               className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
                 showDragTooltip === 'contract'
@@ -160,7 +160,7 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
           </button>
 
           <div className="w-[64px] h-[64px] flex items-center justify-center relative z-10">
-            <MoveHorizontal className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+            <MoveHorizontal className="w-[22px] h-[22px] text-slate-600" strokeWidth={2.15} />
           </div>
 
           <button
@@ -169,7 +169,7 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
             disabled={disabled}
             type="button"
           >
-            <Telescope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+            <Telescope className="w-[29px] h-[29px] text-[#111318]" strokeWidth={2.35} />
             <div
               className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
                 showDragTooltip === 'expand'
