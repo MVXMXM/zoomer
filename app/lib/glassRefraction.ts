@@ -2,6 +2,7 @@ export type LensMapOptions = {
   width: number
   height: number
   radius: number
+  depth: number
   curvature: number
   splay: number
 }
@@ -10,7 +11,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 
 // Generates the red/green displacement map described in Aave's glass technique.
 // Neutral pixels are 128/128; pixels near the inner edge point radially outward.
-export function createLensMap({ width, height, radius, curvature, splay }: LensMapOptions) {
+export function createLensMap({ width, height, radius, depth, curvature, splay }: LensMapOptions) {
   if (typeof document === 'undefined') return ''
 
   const canvas = document.createElement('canvas')
@@ -22,7 +23,8 @@ export function createLensMap({ width, height, radius, curvature, splay }: LensM
   const image = context.createImageData(width, height)
   const halfWidth = width / 2
   const halfHeight = height / 2
-  const edgeWidth = Math.max(1, radius * splay)
+  const edgeWidth = Math.max(1, depth)
+  const curvatureExponent = 0.35 + (curvature / 80) * 4.65
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
@@ -33,7 +35,8 @@ export function createLensMap({ width, height, radius, curvature, splay }: LensM
       const outside = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0)
       const insideDistance = Math.max(0, -outside)
       const normalizedDepth = clamp(insideDistance / edgeWidth, 0, 1)
-      const influence = outside <= 0 ? Math.pow(1 - normalizedDepth, curvature) : 0
+      const edgeCurve = outside <= 0 ? Math.pow(1 - normalizedDepth, curvatureExponent) : 0
+      const influence = edgeCurve * splay
       const length = Math.hypot(dx, dy) || 1
       const directionX = dx / length
       const directionY = dy / length
