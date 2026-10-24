@@ -111,6 +111,23 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
     <>
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>
+          <filter id="liquid-glass-refraction" x="-20%" y="-30%" width="140%" height="160%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.008 0.018"
+              numOctaves="2"
+              seed="12"
+              result="liquid-map"
+            />
+            <feGaussianBlur in="liquid-map" stdDeviation="0.35" result="soft-map" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="soft-map"
+              scale="7"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
           <filter id="lighting" x="-50%" y="-50%" width="200%" height="200%">
             <feSpecularLighting
               id="slider-light"
@@ -142,12 +159,14 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
       >
         <div
           ref={sliderRef}
-          className="control-container relative w-[264px] h-24 rounded-full flex items-center justify-between px-4 backdrop-blur-[30px] border border-slate-200"
+          className="control-container liquid-glass relative w-[264px] h-24 rounded-full flex items-center justify-between px-4"
           style={{
             '--border': '1',
+            '--glass-x': `${mousePosition.x}px`,
+            '--glass-y': `${mousePosition.y}px`,
             position: 'relative',
-            background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(196, 196, 196, 0.5) 100%)',
-            boxShadow: '0 0 40px 0 rgba(179, 179, 179, 0.15), 0 8px 32px 0 rgba(31, 38, 135, 0.2)',
+            boxShadow:
+              '0 22px 55px -22px rgba(30, 41, 59, 0.42), 0 8px 24px -12px rgba(14, 165, 233, 0.26)',
           } as React.CSSProperties}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
@@ -156,8 +175,11 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
           onMouseMove={handleControlBarMouseMove}
           onMouseLeave={handleControlBarMouseLeave}
         >
+          <div className="liquid-glass-surface" aria-hidden="true" />
+          <div className="liquid-glass-rim" aria-hidden="true" />
+
           <div
-            className="absolute rounded-full pointer-events-none"
+            className="absolute rounded-full pointer-events-none z-20"
             style={{
               inset: '-1px',
               border: `calc(var(--border) * 1px) solid transparent`,
@@ -169,21 +191,19 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
           />
 
           <button
-            className="w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative group"
+            className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative z-10 group"
             onClick={() => fire('contract')}
             disabled={disabled}
             type="button"
             style={{
-              background:
-                'linear-gradient(180deg, rgba(180, 195, 216, 0.75) 0%, rgba(180, 195, 216, 0.5) 50%, rgba(223, 233, 242, 0.25) 100%)',
-              boxShadow: '0 0 15px rgba(255, 255, 255, 0.4)',
               transition: 'box-shadow 0.2s ease-in-out',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow = '0 0 25px rgba(255, 255, 255, 0.8)'
+              e.currentTarget.style.boxShadow =
+                'inset 0 1px 1px rgba(255,255,255,0.9), inset 0 -1px 1px rgba(71,85,105,0.12), 0 8px 22px rgba(14,165,233,0.22)'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.4)'
+              e.currentTarget.style.boxShadow = ''
             }}
           >
             <Microscope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
@@ -198,26 +218,24 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
             </div>
           </button>
 
-          <div className="w-[64px] h-[64px] flex items-center justify-center">
+          <div className="w-[64px] h-[64px] flex items-center justify-center relative z-10">
             <MoveHorizontal className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
           </div>
 
           <button
-            className="w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative group"
+            className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative z-10 group"
             onClick={() => fire('expand')}
             disabled={disabled}
             type="button"
             style={{
-              background:
-                'linear-gradient(180deg, rgba(180, 195, 216, 0.75) 0%, rgba(180, 195, 216, 0.5) 50%, rgba(223, 233, 242, 0.25) 100%)',
-              boxShadow: '0 0 15px rgba(255, 255, 255, 0.4)',
               transition: 'box-shadow 0.2s ease-in-out',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow = '0 0 25px rgba(255, 255, 255, 0.8)'
+              e.currentTarget.style.boxShadow =
+                'inset 0 1px 1px rgba(255,255,255,0.9), inset 0 -1px 1px rgba(71,85,105,0.12), 0 8px 22px rgba(14,165,233,0.22)'
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.4)'
+              e.currentTarget.style.boxShadow = ''
             }}
           >
             <Telescope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
