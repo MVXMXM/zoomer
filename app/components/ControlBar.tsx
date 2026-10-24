@@ -175,10 +175,10 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
                 result="displaced"
               />
               <feOffset in="displaced" dx={-glassSettings.chroma} result="red-offset" />
-              <feFlood floodColor="#ff453a" floodOpacity={Math.min(0.32, glassSettings.chroma * 0.1)} result="red-color" />
+              <feFlood floodColor="#ff453a" floodOpacity={Math.min(0.5, glassSettings.chroma * 0.14)} result="red-color" />
               <feComposite in="red-color" in2="red-offset" operator="in" result="red-fringe" />
               <feOffset in="displaced" dx={glassSettings.chroma} result="blue-offset" />
-              <feFlood floodColor="#32ade6" floodOpacity={Math.min(0.28, glassSettings.chroma * 0.09)} result="blue-color" />
+              <feFlood floodColor="#32ade6" floodOpacity={Math.min(0.45, glassSettings.chroma * 0.12)} result="blue-color" />
               <feComposite in="blue-color" in2="blue-offset" operator="in" result="blue-fringe" />
               <feMerge>
                 <feMergeNode in="red-fringe" />
@@ -220,6 +220,14 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
             '--glass-highlight': glassSettings.highlight,
             '--glass-shadow': glassSettings.shadow,
             '--glass-shadow-soft': glassSettings.shadow * 0.43,
+            '--glass-shadow-outer': glassSettings.shadow * 0.95,
+            '--glass-shadow-soft-outer': glassSettings.shadow * 0.34,
+            '--glass-top-overlay': glassSettings.topShade * 0.22,
+            '--glass-bottom-overlay': glassSettings.bottomLight * 0.52,
+            '--glass-highlight-rim': 0.35 + glassSettings.highlight * 0.45,
+            '--glass-top-inset': glassSettings.topShade * 0.8,
+            '--glass-top-inner': glassSettings.topShade * 0.72,
+            '--glass-bottom-inset': glassSettings.bottomLight * 0.95,
             '--glass-icon-size': `${glassSettings.iconSize}px`,
           } as React.CSSProperties}
           onMouseDown={(e) => {

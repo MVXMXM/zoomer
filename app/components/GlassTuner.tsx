@@ -21,21 +21,21 @@ export type GlassSettings = {
 }
 
 export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
-  fill: 0.22,
-  blur: 16,
-  saturation: 108,
-  contrast: 94,
-  topShade: 0.5,
-  bottomLight: 0.98,
+  fill: 0.2,
+  blur: 18,
+  saturation: 120,
+  contrast: 100,
+  topShade: 0.42,
+  bottomLight: 0.72,
   rim: 0.9,
-  highlight: 0.42,
-  shadow: 0.28,
+  highlight: 0.5,
+  shadow: 0.34,
   iconSize: 29,
-  refraction: 14,
-  curvature: 1.8,
-  splay: 1,
-  chroma: 0.8,
-  refractionVisibility: 0.3,
+  refraction: 20,
+  curvature: 2,
+  splay: 1.15,
+  chroma: 1.2,
+  refractionVisibility: 0.48,
 }
 
 type Dial = {
@@ -48,25 +48,25 @@ type Dial = {
 }
 
 const dials: Dial[] = [
-  { key: 'fill', label: 'Fill', min: 0, max: 0.9, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'blur', label: 'Blur', min: 0, max: 32, step: 1, format: (value) => `${value}px` },
-  { key: 'saturation', label: 'Saturation', min: 80, max: 160, step: 1, format: (value) => `${value}%` },
-  { key: 'contrast', label: 'Contrast', min: 75, max: 115, step: 1, format: (value) => `${value}%` },
-  { key: 'topShade', label: 'Top shade', min: 0, max: 0.8, step: 0.01, format: (value) => value.toFixed(2) },
+  { key: 'fill', label: 'Fill', min: 0, max: 0.75, step: 0.01, format: (value) => value.toFixed(2) },
+  { key: 'blur', label: 'Blur', min: 0, max: 48, step: 1, format: (value) => `${value}px` },
+  { key: 'saturation', label: 'Saturation', min: 50, max: 220, step: 1, format: (value) => `${value}%` },
+  { key: 'contrast', label: 'Contrast', min: 55, max: 145, step: 1, format: (value) => `${value}%` },
+  { key: 'topShade', label: 'Top shade', min: 0, max: 1, step: 0.01, format: (value) => value.toFixed(2) },
   { key: 'bottomLight', label: 'Bottom light', min: 0, max: 1, step: 0.01, format: (value) => value.toFixed(2) },
   { key: 'rim', label: 'Rim', min: 0, max: 1, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'highlight', label: 'Highlight', min: 0, max: 0.8, step: 0.01, format: (value) => value.toFixed(2) },
-  { key: 'shadow', label: 'Shadow', min: 0, max: 0.6, step: 0.01, format: (value) => value.toFixed(2) },
+  { key: 'highlight', label: 'Highlight', min: 0, max: 1, step: 0.01, format: (value) => value.toFixed(2) },
+  { key: 'shadow', label: 'Shadow', min: 0, max: 1, step: 0.01, format: (value) => value.toFixed(2) },
   { key: 'iconSize', label: 'Icon size', min: 20, max: 38, step: 1, format: (value) => `${value}px` },
-  { key: 'refraction', label: 'Refraction', min: 0, max: 40, step: 1, format: (value) => `${value}px` },
-  { key: 'curvature', label: 'Curvature', min: 0.5, max: 4, step: 0.1, format: (value) => value.toFixed(1) },
-  { key: 'splay', label: 'Edge splay', min: 0.35, max: 2, step: 0.05, format: (value) => value.toFixed(2) },
-  { key: 'chroma', label: 'Chroma', min: 0, max: 4, step: 0.1, format: (value) => `${value.toFixed(1)}px` },
+  { key: 'refraction', label: 'Refraction depth', min: 0, max: 56, step: 1, format: (value) => `${value}px` },
+  { key: 'curvature', label: 'Curvature', min: 0.25, max: 6, step: 0.05, format: (value) => value.toFixed(2) },
+  { key: 'splay', label: 'Edge splay', min: 0.15, max: 2.5, step: 0.05, format: (value) => value.toFixed(2) },
+  { key: 'chroma', label: 'Chroma', min: 0, max: 6, step: 0.1, format: (value) => `${value.toFixed(1)}px` },
   {
     key: 'refractionVisibility',
-    label: 'Refracted text',
+    label: 'Refraction visibility',
     min: 0,
-    max: 0.8,
+    max: 1,
     step: 0.01,
     format: (value) => value.toFixed(2),
   },
@@ -95,6 +95,9 @@ export function GlassTuner({ value, onChange }: GlassTunerProps) {
         Glass dials <span className="ml-1 font-normal text-slate-400">dev only</span>
       </summary>
       <div className="border-t border-white/10 px-4 pb-4 pt-3">
+        <p className="mb-3 text-[11px] leading-4 text-slate-400">
+          Material controls affect the shell; optical controls affect the cloned text beneath it.
+        </p>
         <div className="space-y-3">
           {dials.map((dial) => (
             <label key={dial.key} className="block">
