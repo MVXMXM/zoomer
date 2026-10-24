@@ -20,6 +20,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     error,
     activeButton,
     shouldExpand,
+    hasSelection,
     textareaRef,
     rememberSelection,
     handleRewrite,
@@ -161,7 +162,10 @@ export function ArticleContent(props: ZoomArticleProps) {
       <textarea
         ref={textareaRef}
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={(e) => {
+          setContent(e.target.value)
+          rememberSelection()
+        }}
         className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none px-0 pt-0 pb-[132px] relative ${
           isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
         }`}
@@ -185,12 +189,14 @@ export function ArticleContent(props: ZoomArticleProps) {
         onMouseUp={rememberSelection}
       />
 
-      <ControlBar
-        visible={shouldExpand}
-        disabled={isLoading || overlayOpen || !!activeButton}
-        onContract={() => start('contract')}
-        onExpand={() => start('expand')}
-      />
+      {hasSelection && !overlayOpen && (
+        <ControlBar
+          visible
+          disabled={isLoading || !!activeButton}
+          onContract={() => start('contract')}
+          onExpand={() => start('expand')}
+        />
+      )}
 
       {error && (
         <motion.div
