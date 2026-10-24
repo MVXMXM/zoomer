@@ -43,18 +43,28 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
   const sliderRef = useRef<HTMLDivElement>(null)
   const showGlassTuner = process.env.NODE_ENV === 'development'
   const filterInstanceId = useId().replace(/:/g, '')
-  const filterId = `glass-content-${filterInstanceId}-${Math.round(glassSettings.refraction)}-${Math.round(glassSettings.curvature * 10)}-${Math.round(glassSettings.splay * 20)}-${Math.round(glassSettings.chroma * 10)}`
+  // The reference playground's 70 × 60 lens maps to this component's 264 × 96 resting size.
+  const controlWidth = Math.round(184 + (glassSettings.width - 20) * 1.6)
+  const controlHeight = Math.round(64 + (glassSettings.height - 20) * 0.8)
+  const controlRadius = Math.min(controlHeight / 2, (glassSettings.borderRadius / 60) * controlHeight)
+  const controlTop = anchor
+    ? anchor.y - (anchor.placement === 'above' ? controlHeight - 96 : 0)
+    : null
+  const displacementScale = glassSettings.scale * 200
+  const chromaOffset = glassSettings.chroma * 6
+  const filterId = `glass-content-${filterInstanceId}-${controlWidth}-${controlHeight}-${Math.round(controlRadius)}-${Math.round(glassSettings.scale * 1000)}-${glassSettings.depth}-${glassSettings.curvature}-${Math.round(glassSettings.splay * 100)}-${Math.round(glassSettings.chroma * 100)}-${Math.round(glassSettings.blur * 10)}`
   useEffect(() => {
     setLensMap(
       createLensMap({
-        width: 264,
-        height: 96,
-        radius: 48,
+        width: controlWidth,
+        height: controlHeight,
+        radius: controlRadius,
+        depth: glassSettings.depth * (controlHeight / 60),
         curvature: glassSettings.curvature,
         splay: glassSettings.splay,
       }),
     )
-  }, [glassSettings.curvature, glassSettings.splay])
+  }, [controlHeight, controlRadius, controlWidth, glassSettings.curvature, glassSettings.depth, glassSettings.splay])
 
   useLayoutEffect(() => {
     const textarea = sourceRef.current
@@ -62,8 +72,8 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
     const rect = textarea.getBoundingClientRect()
     const style = window.getComputedStyle(textarea)
     setSourceGeometry({
-      left: rect.left - textarea.scrollLeft - (anchor.x - 132),
-      top: rect.top - textarea.scrollTop - anchor.y,
+      left: rect.left - textarea.scrollLeft - (anchor.x - controlWidth / 2),
+      top: rect.top - textarea.scrollTop - (controlTop ?? anchor.y),
       width: rect.width,
       height: Math.max(rect.height, textarea.scrollHeight),
       fontFamily: style.fontFamily,
@@ -73,7 +83,7 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
       letterSpacing: style.letterSpacing,
       color: style.color,
     })
-  }, [anchor, sourceRef, sourceText, visible])
+  }, [anchor, controlTop, controlWidth, sourceRef, sourceText, visible])
 
   const handleSliderDrag = useCallback(
     (event: MouseEvent | TouchEvent) => {
@@ -146,39 +156,31 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
     <>
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>
-          <filter id="liquid-glass-refraction" x="-20%" y="-30%" width="140%" height="160%">
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency="0.008 0.018"
-              numOctaves="2"
-              seed="12"
-              result="liquid-map"
-            />
-            <feGaussianBlur in="liquid-map" stdDeviation="0.35" result="soft-map" />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="soft-map"
-              scale="7"
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-          </filter>
           {lensMap && (
             <filter id={filterId} x="-20%" y="-30%" width="140%" height="160%" colorInterpolationFilters="sRGB">
-              <feImage href={lensMap} x="0" y="0" width="264" height="96" preserveAspectRatio="none" result="lens-map" />
+              <feImage
+                href={lensMap}
+                x="0"
+                y="0"
+                width={controlWidth}
+                height={controlHeight}
+                preserveAspectRatio="none"
+                result="lens-map"
+              />
+              <feGaussianBlur in="lens-map" stdDeviation={glassSettings.blur} result="soft-lens-map" />
               <feDisplacementMap
                 in="SourceGraphic"
-                in2="lens-map"
-                scale={glassSettings.refraction}
+                in2="soft-lens-map"
+                scale={displacementScale}
                 xChannelSelector="R"
                 yChannelSelector="G"
                 result="displaced"
               />
-              <feOffset in="displaced" dx={-glassSettings.chroma} result="red-offset" />
-              <feFlood floodColor="#ff453a" floodOpacity={Math.min(0.5, glassSettings.chroma * 0.14)} result="red-color" />
+              <feOffset in="displaced" dx={-chromaOffset} result="red-offset" />
+              <feFlood floodColor="#ff453a" floodOpacity={glassSettings.chroma * 0.5} result="red-color" />
               <feComposite in="red-color" in2="red-offset" operator="in" result="red-fringe" />
-              <feOffset in="displaced" dx={glassSettings.chroma} result="blue-offset" />
-              <feFlood floodColor="#32ade6" floodOpacity={Math.min(0.45, glassSettings.chroma * 0.12)} result="blue-color" />
+              <feOffset in="displaced" dx={chromaOffset} result="blue-offset" />
+              <feFlood floodColor="#32ade6" floodOpacity={glassSettings.chroma * 0.45} result="blue-color" />
               <feComposite in="blue-color" in2="blue-offset" operator="in" result="blue-fringe" />
               <feMerge>
                 <feMergeNode in="red-fringe" />
@@ -199,7 +201,7 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
         style={{
           zIndex: 9999,
           left: anchor?.x ?? '50%',
-          top: anchor?.y ?? '100%',
+          top: controlTop ?? '100%',
           opacity: visible ? 1 : 0,
           pointerEvents: visible ? 'auto' : 'none',
           transform: 'translate3d(-50%, 0, 0)',
@@ -207,28 +209,19 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
       >
         <div
           ref={sliderRef}
-          className="control-container liquid-glass relative w-[264px] h-24 rounded-full flex items-center justify-between px-4"
+          className="control-container liquid-glass relative flex items-center justify-between px-4"
           style={{
             position: 'relative',
-            '--glass-fill': glassSettings.fill,
-            '--glass-blur': `${glassSettings.blur}px`,
-            '--glass-saturation': `${glassSettings.saturation}%`,
-            '--glass-contrast': `${glassSettings.contrast}%`,
-            '--glass-top-shade': glassSettings.topShade,
-            '--glass-bottom-light': glassSettings.bottomLight,
-            '--glass-rim': glassSettings.rim,
-            '--glass-highlight': glassSettings.highlight,
-            '--glass-shadow': glassSettings.shadow,
-            '--glass-shadow-soft': glassSettings.shadow * 0.43,
-            '--glass-shadow-outer': glassSettings.shadow * 0.95,
-            '--glass-shadow-soft-outer': glassSettings.shadow * 0.34,
-            '--glass-top-overlay': glassSettings.topShade * 0.22,
-            '--glass-bottom-overlay': glassSettings.bottomLight * 0.52,
-            '--glass-highlight-rim': 0.35 + glassSettings.highlight * 0.45,
-            '--glass-top-inset': glassSettings.topShade * 0.8,
-            '--glass-top-inner': glassSettings.topShade * 0.72,
-            '--glass-bottom-inset': glassSettings.bottomLight * 0.95,
-            '--glass-icon-size': `${glassSettings.iconSize}px`,
+            width: controlWidth,
+            height: controlHeight,
+            borderRadius: controlRadius,
+            '--glass-glow': glassSettings.glow,
+            '--glass-glow-wide': glassSettings.glow * 0.45,
+            '--glass-edge-highlight': glassSettings.edgeHighlight,
+            '--glass-rim': 0.18 + glassSettings.edgeHighlight * 0.82,
+            '--glass-specular-angle': `${glassSettings.specularAngle}deg`,
+            '--glass-specular-cross-angle': `${(glassSettings.specularAngle + 90) % 360}deg`,
+            '--glass-icon-size': '29px',
           } as React.CSSProperties}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
@@ -241,7 +234,7 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
                 className="glass-refraction-viewport"
                 style={{
                   filter: `url(#${filterId})`,
-                  opacity: glassSettings.refractionVisibility,
+                  opacity: 0.55,
                 }}
               >
                 <div
