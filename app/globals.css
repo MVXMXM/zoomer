@@ -43,19 +43,16 @@ body {
   overflow: hidden;
   background:
     radial-gradient(
-      circle 118px at var(--glass-x, 50%) var(--glass-y, 50%),
-      rgba(255, 255, 255, 0.58) 0%,
-      rgba(224, 247, 255, 0.22) 38%,
-      transparent 72%
+      circle 96px at var(--glass-x, 50%) var(--glass-y, 50%),
+      rgba(255, 255, 255, 0.34) 0%,
+      transparent 70%
     ),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(226, 240, 248, 0.25) 48%, rgba(203, 213, 225, 0.32));
-  -webkit-backdrop-filter: blur(18px) saturate(165%) contrast(105%);
-  backdrop-filter: blur(18px) saturate(165%) contrast(105%);
+    rgba(255, 255, 255, 0.26);
+  -webkit-backdrop-filter: blur(3px) saturate(120%);
+  backdrop-filter: blur(3px) saturate(120%);
   box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.96),
-    inset 0 -1px 2px rgba(71, 85, 105, 0.18),
-    inset 2px 0 2px rgba(34, 211, 238, 0.08),
-    inset -2px 0 2px rgba(217, 70, 239, 0.08);
+    inset 0 1px 1px rgba(255, 255, 255, 0.88),
+    inset 0 -1px 1px rgba(71, 85, 105, 0.12);
 }
 
 .liquid-glass-surface::before {
@@ -63,10 +60,10 @@ body {
   position: absolute;
   inset: -28%;
   background:
-    radial-gradient(ellipse at 30% 10%, rgba(255, 255, 255, 0.82), transparent 28%),
-    linear-gradient(112deg, transparent 30%, rgba(255, 255, 255, 0.44) 47%, transparent 63%);
+    radial-gradient(ellipse at 30% 10%, rgba(255, 255, 255, 0.62), transparent 24%),
+    linear-gradient(112deg, transparent 35%, rgba(255, 255, 255, 0.22) 48%, transparent 61%);
   filter: url('#liquid-glass-refraction');
-  opacity: 0.75;
+  opacity: 0.3;
   transform: translate3d(-4px, -2px, 0);
   transition: opacity 180ms ease;
 }
@@ -78,7 +75,7 @@ body {
   border-radius: inherit;
   background: radial-gradient(
     circle 82px at var(--glass-x, 50%) var(--glass-y, 50%),
-    rgba(255, 255, 255, 0.3),
+    rgba(255, 255, 255, 0.18),
     transparent 72%
   );
   mix-blend-mode: screen;
@@ -88,35 +85,38 @@ body {
   z-index: 20;
   padding: 1px;
   background: conic-gradient(
-    from 205deg,
-    rgba(34, 211, 238, 0.48),
-    rgba(255, 255, 255, 0.94) 21%,
-    rgba(255, 255, 255, 0.3) 42%,
-    rgba(217, 70, 239, 0.28) 68%,
-    rgba(255, 255, 255, 0.9) 86%,
-    rgba(34, 211, 238, 0.48)
+    from 220deg,
+    rgba(148, 163, 184, 0.22),
+    rgba(255, 255, 255, 0.92) 22%,
+    rgba(255, 255, 255, 0.28) 48%,
+    rgba(100, 116, 139, 0.2) 70%,
+    rgba(255, 255, 255, 0.82) 88%,
+    rgba(148, 163, 184, 0.22)
   );
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  opacity: 0.72;
+  opacity: 0.82;
 }
 
 .liquid-glass-button {
-  background:
-    radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.88), transparent 34%),
-    linear-gradient(155deg, rgba(226, 240, 248, 0.58), rgba(177, 198, 216, 0.38));
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
-  backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.58);
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.82),
-    inset 0 -1px 1px rgba(71, 85, 105, 0.12),
-    0 5px 14px rgba(71, 85, 105, 0.12);
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.liquid-glass-button:hover {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.7) !important;
 }
 
 .liquid-glass:hover .liquid-glass-surface::before {
-  opacity: 0.96;
+  opacity: 0.46;
 }
 
 /* Loading text animation */
