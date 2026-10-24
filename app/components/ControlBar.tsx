@@ -116,70 +116,70 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
       <div
         aria-hidden={!visible}
         inert={!visible}
-        data-placement={anchor?.placement ?? 'below'}
-        data-visible={visible}
-        className="zoom-control-popover fixed z-50"
+        className="fixed z-50"
         style={{
           zIndex: 9999,
-          left: anchor ? anchor.x - 132 : 'calc(50% - 132px)',
+          left: anchor?.x ?? '50%',
           top: anchor?.y ?? '100%',
           opacity: visible ? 1 : 0,
           pointerEvents: visible ? 'auto' : 'none',
-          transition: visible
-            ? 'opacity 180ms ease-out'
-            : 'opacity 150ms ease-in',
-          willChange: 'opacity',
+          transform: 'translate3d(-50%, 0, 0)',
         }}
       >
         <div
           ref={sliderRef}
-          className="control-container liquid-glass relative w-[264px] h-24 rounded-full"
+          className="control-container liquid-glass relative w-[264px] h-24 rounded-full flex items-center justify-between px-4"
+          style={{
+            position: 'relative',
+            boxShadow: '0 14px 28px -18px rgba(15, 23, 42, 0.32), 0 2px 8px -4px rgba(15, 23, 42, 0.18)',
+          }}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
             e.preventDefault()
           }}
         >
-          <div className="liquid-glass-controls absolute inset-0 z-10 flex items-center justify-between px-4">
-            <button
-              className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative group"
-              onClick={() => fire('contract')}
-              disabled={disabled}
-              type="button"
-            >
-              <Microscope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
-              <div
-                className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
-                  showDragTooltip === 'contract'
-                    ? 'opacity-100 translate-y-0'
-                    : 'opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0'
-                }`}
-              >
-                Distill
-              </div>
-            </button>
+          <div className="liquid-glass-surface" aria-hidden="true" />
+          <div className="liquid-glass-rim" aria-hidden="true" />
 
-            <div className="w-[64px] h-[64px] flex items-center justify-center">
-              <MoveHorizontal className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+          <button
+            className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative z-10 group"
+            onClick={() => fire('contract')}
+            disabled={disabled}
+            type="button"
+          >
+            <Microscope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+            <div
+              className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
+                showDragTooltip === 'contract'
+                  ? 'opacity-100 translate-y-0'
+                  : 'opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0'
+              }`}
+            >
+              Distill
             </div>
+          </button>
 
-            <button
-              className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative group"
-              onClick={() => fire('expand')}
-              disabled={disabled}
-              type="button"
-            >
-              <Telescope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
-              <div
-                className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
-                  showDragTooltip === 'expand'
-                    ? 'opacity-100 translate-y-0'
-                    : 'opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0'
-                }`}
-              >
-                Extrapolate
-              </div>
-            </button>
+          <div className="w-[64px] h-[64px] flex items-center justify-center relative z-10">
+            <MoveHorizontal className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
           </div>
+
+          <button
+            className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative z-10 group"
+            onClick={() => fire('expand')}
+            disabled={disabled}
+            type="button"
+          >
+            <Telescope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+            <div
+              className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
+                showDragTooltip === 'expand'
+                  ? 'opacity-100 translate-y-0'
+                  : 'opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0'
+              }`}
+            >
+              Extrapolate
+            </div>
+          </button>
         </div>
       </div>
     </>
