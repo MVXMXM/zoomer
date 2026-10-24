@@ -1,4 +1,4 @@
-# Zoomer v0.1.0
+# Zoomer v0.1.1
 
 Semantic zoom for text — expand or contract content while preserving meaning using AI.
 

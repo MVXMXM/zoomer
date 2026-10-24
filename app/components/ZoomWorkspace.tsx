@@ -11,8 +11,7 @@ export function ZoomWorkspace() {
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
   const [hasText, setHasText] = useState(false)
-  const [isEngaged, setIsEngaged] = useState(false)
-  const [hasPerformedZoom, setHasPerformedZoom] = useState(false)
+  const [hasSelection, setHasSelection] = useState(false)
   const [lastOperation, setLastOperation] = useState<{
     type: ZoomOperation
     beforeCount: number
@@ -22,9 +21,7 @@ export function ZoomWorkspace() {
 
   useEffect(() => {
     if (!hasText) {
-      setHasPerformedZoom(false)
       setLastOperation(null)
-      setIsEngaged(false)
     }
   }, [hasText])
 
@@ -37,7 +34,6 @@ export function ZoomWorkspace() {
       setIsLoading(loading)
       setActiveButton(button)
       if (!loading && button && operationSummary) {
-        setHasPerformedZoom(true)
         setLastOperation({
           type: button,
           beforeCount: operationSummary.beforeCount,
@@ -54,6 +50,9 @@ export function ZoomWorkspace() {
       if (op === 'contract') return 'Zooming in...'
       if (op === 'expand') return 'Zooming out...'
     }
+    if (hasSelection) {
+      return 'Select a zoom direction below'
+    }
     if (lastOperation) {
       return (
         <>
@@ -62,12 +61,10 @@ export function ZoomWorkspace() {
         </>
       )
     }
-    if (isEngaged && (hasPerformedZoom === false || lastOperation === null)) {
-      return 'Select a zoom direction below'
-    }
+    if (hasText) return 'Select text to zoom'
     return (
       <>
-        Welcome to Zoomer <span className="font-normal">(v0.1.0)</span>
+        Welcome to Zoomer <span className="font-normal">(v0.1.1)</span>
       </>
     )
   }
@@ -88,7 +85,7 @@ export function ZoomWorkspace() {
           onLoadingStateChange={handleLoadingStateChange}
           onHasTextChange={setHasText}
           onContentManuallyEdited={() => setLastOperation(null)}
-          onEngagementChange={setIsEngaged}
+          onSelectionChange={setHasSelection}
           onTransitioningChange={setIsTransitioning}
         />
       </div>
