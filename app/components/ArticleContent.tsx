@@ -318,6 +318,8 @@ export function ArticleContent(props: ZoomArticleProps) {
       <ControlBar
         visible={hasSelection && !overlayOpen && !!controlAnchor}
         anchor={controlAnchor}
+        sourceRef={textareaRef}
+        sourceText={content}
         disabled={isLoading || !!activeButton}
         onContract={() => start('contract')}
         onExpand={() => start('expand')}

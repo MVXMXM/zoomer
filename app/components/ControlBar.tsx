@@ -1,8 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Microscope, MoveHorizontal, Telescope } from 'lucide-react'
 import { DEFAULT_GLASS_SETTINGS, GlassTuner, type GlassSettings } from '@/app/components/GlassTuner'
+import { createLensMap } from '@/app/lib/glassRefraction'
 import type { ZoomOperation } from '@/app/types/zoom'
 
 type ControlBarProps = {
@@ -12,18 +13,67 @@ type ControlBarProps = {
     y: number
     placement: 'above' | 'below'
   } | null
+  sourceRef: React.RefObject<HTMLTextAreaElement | null>
+  sourceText: string
   disabled: boolean
   onContract: () => void
   onExpand: () => void
 }
 
-export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: ControlBarProps) {
+type SourceGeometry = {
+  left: number
+  top: number
+  width: number
+  height: number
+  fontFamily: string
+  fontSize: string
+  fontWeight: string
+  lineHeight: string
+  letterSpacing: string
+  color: string
+}
+
+export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand }: ControlBarProps) {
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [showDragTooltip, setShowDragTooltip] = useState<ZoomOperation | null>(null)
   const [glassSettings, setGlassSettings] = useState<GlassSettings>(DEFAULT_GLASS_SETTINGS)
+  const [sourceGeometry, setSourceGeometry] = useState<SourceGeometry | null>(null)
+  const [lensMap, setLensMap] = useState('')
   const sliderRef = useRef<HTMLDivElement>(null)
   const showGlassTuner = process.env.NODE_ENV === 'development'
+  const filterInstanceId = useId().replace(/:/g, '')
+  const filterId = `glass-content-${filterInstanceId}-${Math.round(glassSettings.refraction)}-${Math.round(glassSettings.curvature * 10)}-${Math.round(glassSettings.splay * 20)}-${Math.round(glassSettings.chroma * 10)}`
+  useEffect(() => {
+    setLensMap(
+      createLensMap({
+        width: 264,
+        height: 96,
+        radius: 48,
+        curvature: glassSettings.curvature,
+        splay: glassSettings.splay,
+      }),
+    )
+  }, [glassSettings.curvature, glassSettings.splay])
+
+  useLayoutEffect(() => {
+    const textarea = sourceRef.current
+    if (!visible || !anchor || !textarea) return
+    const rect = textarea.getBoundingClientRect()
+    const style = window.getComputedStyle(textarea)
+    setSourceGeometry({
+      left: rect.left - textarea.scrollLeft - (anchor.x - 132),
+      top: rect.top - textarea.scrollTop - anchor.y,
+      width: rect.width,
+      height: Math.max(rect.height, textarea.scrollHeight),
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      lineHeight: style.lineHeight,
+      letterSpacing: style.letterSpacing,
+      color: style.color,
+    })
+  }, [anchor, sourceRef, sourceText, visible])
 
   const handleSliderDrag = useCallback(
     (event: MouseEvent | TouchEvent) => {
@@ -113,6 +163,28 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
               yChannelSelector="G"
             />
           </filter>
+          <filter id={filterId} x="-20%" y="-30%" width="140%" height="160%" colorInterpolationFilters="sRGB">
+            <feImage href={lensMap || undefined} x="0" y="0" width="264" height="96" preserveAspectRatio="none" result="lens-map" />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="lens-map"
+              scale={glassSettings.refraction}
+              xChannelSelector="R"
+              yChannelSelector="G"
+              result="displaced"
+            />
+            <feOffset in="displaced" dx={-glassSettings.chroma} result="red-offset" />
+            <feFlood floodColor="#ff453a" floodOpacity={Math.min(0.32, glassSettings.chroma * 0.1)} result="red-color" />
+            <feComposite in="red-color" in2="red-offset" operator="in" result="red-fringe" />
+            <feOffset in="displaced" dx={glassSettings.chroma} result="blue-offset" />
+            <feFlood floodColor="#32ade6" floodOpacity={Math.min(0.28, glassSettings.chroma * 0.09)} result="blue-color" />
+            <feComposite in="blue-color" in2="blue-offset" operator="in" result="blue-fringe" />
+            <feMerge>
+              <feMergeNode in="red-fringe" />
+              <feMergeNode in="blue-fringe" />
+              <feMergeNode in="displaced" />
+            </feMerge>
+          </filter>
         </defs>
       </svg>
 
@@ -153,7 +225,35 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
             e.preventDefault()
           }}
         >
-          <div className="liquid-glass-surface" aria-hidden="true" />
+          <div className="liquid-glass-surface" aria-hidden="true">
+            {sourceGeometry && (
+              <div
+                className="glass-refraction-viewport"
+                style={{
+                  filter: `url(#${filterId})`,
+                  opacity: glassSettings.refractionVisibility,
+                }}
+              >
+                <div
+                  className="glass-refraction-content"
+                  style={{
+                    left: sourceGeometry.left,
+                    top: sourceGeometry.top,
+                    width: sourceGeometry.width,
+                    minHeight: sourceGeometry.height,
+                    fontFamily: sourceGeometry.fontFamily,
+                    fontSize: sourceGeometry.fontSize,
+                    fontWeight: sourceGeometry.fontWeight,
+                    lineHeight: sourceGeometry.lineHeight,
+                    letterSpacing: sourceGeometry.letterSpacing,
+                    color: sourceGeometry.color,
+                  }}
+                >
+                  {sourceText}
+                </div>
+              </div>
+            )}
+          </div>
           <div className="liquid-glass-rim" aria-hidden="true" />
 
           <button
