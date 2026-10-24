@@ -167,13 +167,17 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
                 preserveAspectRatio="none"
                 result="lens-map"
               />
-              <feGaussianBlur in="lens-map" stdDeviation={glassSettings.blur} result="soft-lens-map" />
               <feDisplacementMap
                 in="SourceGraphic"
-                in2="soft-lens-map"
+                in2="lens-map"
                 scale={displacementScale}
                 xChannelSelector="R"
                 yChannelSelector="G"
+                result="refracted"
+              />
+              <feGaussianBlur
+                in="refracted"
+                stdDeviation={3.2 + glassSettings.blur * 2}
                 result="displaced"
               />
               <feOffset in="displaced" dx={-chromaOffset} result="red-offset" />
