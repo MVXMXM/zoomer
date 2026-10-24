@@ -32,7 +32,10 @@ export function createLensMap({ width, height, radius, depth, curvature, splay }
       const dy = y + 0.5 - halfHeight
       const qx = Math.abs(dx) - (halfWidth - radius)
       const qy = Math.abs(dy) - (halfHeight - radius)
-      const outside = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0)
+      // Signed distance to a rounded rectangle. Subtracting the corner radius
+      // keeps the active map on the full capsule instead of its inner spine.
+      const outside =
+        Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - radius
       const insideDistance = Math.max(0, -outside)
       const normalizedDepth = clamp(insideDistance / edgeWidth, 0, 1)
       const edgeCurve = outside <= 0 ? Math.pow(1 - normalizedDepth, curvatureExponent) : 0
