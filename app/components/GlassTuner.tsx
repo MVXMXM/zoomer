@@ -19,17 +19,17 @@ export type GlassSettings = {
 }
 
 export const DEFAULT_GLASS_SETTINGS: GlassSettings = {
-  width: 70,
-  height: 60,
+  width: 20,
+  height: 20,
   borderRadius: 28,
-  scale: 0.1,
-  depth: 10,
-  curvature: 40,
+  scale: 0.2,
+  depth: 17,
+  curvature: 80,
   splay: 1,
   chroma: 0.2,
   blur: 0,
-  glow: 0.1,
-  edgeHighlight: 0.25,
+  glow: 1,
+  edgeHighlight: 0,
   specularAngle: 45,
 }
 
