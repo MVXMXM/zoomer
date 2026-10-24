@@ -127,11 +127,10 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
           transform: visible
             ? 'translate3d(-50%, 0, 0) scale3d(1, 1, 1)'
             : `translate3d(-50%, ${anchor?.placement === 'above' ? '10px' : '-10px'}, 0) scale3d(0.86, 0.62, 1)`,
-          filter: visible ? 'blur(0)' : 'blur(3px)',
           transition: visible
-            ? 'opacity 180ms ease-out, transform 520ms cubic-bezier(0.18, 1.32, 0.25, 1), filter 260ms ease-out'
-            : 'opacity 150ms ease-in, transform 240ms cubic-bezier(0.4, 0, 0.6, 1), filter 180ms ease-in',
-          willChange: 'transform, opacity, filter',
+            ? 'opacity 180ms ease-out, transform 520ms cubic-bezier(0.18, 1.32, 0.25, 1)'
+            : 'opacity 150ms ease-in, transform 240ms cubic-bezier(0.4, 0, 0.6, 1)',
+          willChange: 'transform, opacity',
         }}
       >
         <div
