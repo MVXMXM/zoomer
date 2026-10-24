@@ -6,12 +6,17 @@ import type { ZoomOperation } from '@/app/types/zoom'
 
 type ControlBarProps = {
   visible: boolean
+  anchor: {
+    x: number
+    y: number
+    placement: 'above' | 'below'
+  } | null
   disabled: boolean
   onContract: () => void
   onExpand: () => void
 }
 
-export function ControlBar({ visible, disabled, onContract, onExpand }: ControlBarProps) {
+export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: ControlBarProps) {
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [showDragTooltip, setShowDragTooltip] = useState<ZoomOperation | null>(null)
@@ -122,8 +127,18 @@ export function ControlBar({ visible, disabled, onContract, onExpand }: ControlB
       </svg>
 
       <div
-        className="fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ease-in-out"
-        style={{ zIndex: 9999, bottom: visible ? '24px' : '-100px' }}
+        aria-hidden={!visible}
+        inert={!visible}
+        className="fixed z-50"
+        style={{
+          zIndex: 9999,
+          left: anchor?.x ?? '50%',
+          top: anchor?.y ?? '100%',
+          opacity: visible ? 1 : 0,
+          pointerEvents: visible ? 'auto' : 'none',
+          transform: `translate3d(-50%, ${visible ? '0' : anchor?.placement === 'above' ? '6px' : '-6px'}, 0)`,
+          transition: 'opacity 180ms ease-out, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1)',
+        }}
       >
         <div
           ref={sliderRef}

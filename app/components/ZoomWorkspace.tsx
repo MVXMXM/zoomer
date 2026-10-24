@@ -52,7 +52,7 @@ export function ZoomWorkspace() {
       if (op === 'expand') return 'Zooming out...'
     }
     if (hasSelection) {
-      return 'Select a zoom direction below'
+      return 'Choose a zoom direction'
     }
     if (lastOperation) {
       return (
