@@ -20,17 +20,7 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [showDragTooltip, setShowDragTooltip] = useState<ZoomOperation | null>(null)
-  const [mousePosition, setMousePosition] = useState({ x: 132, y: 48 })
   const sliderRef = useRef<HTMLDivElement>(null)
-
-  const handleControlBarMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMousePosition({ x: e.clientX - rect.left, y: e.clientY - rect.top })
-  }, [])
-
-  const handleControlBarMouseLeave = useCallback(() => {
-    setMousePosition({ x: 132, y: 48 })
-  }, [])
 
   const handleSliderDrag = useCallback(
     (event: MouseEvent | TouchEvent) => {
@@ -141,17 +131,13 @@ export function ControlBar({ visible, anchor, disabled, onContract, onExpand }: 
           ref={sliderRef}
           className="control-container liquid-glass relative w-[264px] h-24 rounded-full flex items-center justify-between px-4"
           style={{
-            '--glass-x': `${mousePosition.x}px`,
-            '--glass-y': `${mousePosition.y}px`,
             position: 'relative',
             boxShadow: '0 14px 28px -18px rgba(15, 23, 42, 0.32), 0 2px 8px -4px rgba(15, 23, 42, 0.18)',
-          } as React.CSSProperties}
+          }}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
             e.preventDefault()
           }}
-          onMouseMove={handleControlBarMouseMove}
-          onMouseLeave={handleControlBarMouseLeave}
         >
           <div className="liquid-glass-surface" aria-hidden="true" />
           <div className="liquid-glass-rim" aria-hidden="true" />
