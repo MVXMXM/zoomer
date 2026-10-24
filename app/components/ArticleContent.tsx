@@ -8,7 +8,7 @@ import { WordBlurOverlay, type BlurPhase } from '@/app/components/WordBlurOverla
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
-import type { ZoomArticleProps } from '@/app/types/zoom'
+import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const REST_HEIGHT = 'calc(100dvh - 96px - 32px)'
 const VIEWPORT_MARGIN = 12
@@ -248,8 +248,8 @@ export function ArticleContent(props: ZoomArticleProps) {
     onTransitioningChange?.(false)
   }, [onTransitioningChange])
 
-  const start = useCallback((operation: 'expand' | 'contract') => {
-    void handleRewrite(operation, {
+  const start = useCallback((operation: ZoomOperation, degree: ZoomDegree = 2) => {
+    void handleRewrite(operation, degree, {
       onStart: (source, range) => {
         phaseRef.current = 'stream'
         setZoomPhase('stream')
@@ -411,8 +411,7 @@ export function ArticleContent(props: ZoomArticleProps) {
         loading={zoomPhase === 'stream'}
         review={keepReviewActions ? { onAccept: acceptReview, onReject: rejectReview } : undefined}
         disabled={isLoading || !!activeButton}
-        onContract={() => start('contract')}
-        onExpand={() => start('expand')}
+        onZoom={start}
       />
 
       {error && (

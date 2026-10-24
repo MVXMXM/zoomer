@@ -8,7 +8,7 @@ import {
   wordCount,
   type RewriteRange,
 } from '@/app/lib/rewriteClient'
-import type { ZoomArticleProps, ZoomOperation } from '@/app/types/zoom'
+import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const HISTORY_CAP = 20
 
@@ -177,6 +177,7 @@ export function useArticleEditor({
   const handleRewrite = useCallback(
     async (
       operation: ZoomOperation,
+      degree: ZoomDegree,
       hooks?: {
         onStart?: (oldText: string, range: RewriteRange | null) => void
         onUpdate?: (text: string) => void
@@ -228,6 +229,7 @@ export function useArticleEditor({
         const result = await streamRewrite(
           excerpt ?? oldText,
           operation,
+          degree,
           (chunk) => {
             if (controller.signal.aborted) return
             const next = stitchRewrite(oldText, range, chunk)

@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import type { SelectionMenuSettings } from '@/app/lib/selectionMenuSettings'
+import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 type ControlBarProps = {
   menuRef: React.Ref<HTMLDivElement>
@@ -17,24 +18,28 @@ type ControlBarProps = {
   } | null
   disabled: boolean
   loading: boolean
-  onContract: () => void
-  onExpand: () => void
+  onZoom: (operation: ZoomOperation, degree: ZoomDegree) => void
   review?: { onAccept: () => void; onReject: () => void }
 }
 
-type ZoomSegment = 'contract' | 'expand' | 'idle' | 'accept' | 'reject'
-
 const zoomSegments = [
-  { id: 'contract', label: 'Distill' },
-  { id: 'expand', label: 'Extrapolate' },
+  { id: '-50', label: '−50%', operation: 'contract', degree: 3 },
+  { id: '-25', label: '−25%', operation: 'contract', degree: 2 },
+  { id: '-10', label: '−10%', operation: 'contract', degree: 1 },
+  { id: 'idle', label: '0' },
+  { id: '+10', label: '+10%', operation: 'expand', degree: 1 },
+  { id: '+25', label: '+25%', operation: 'expand', degree: 2 },
+  { id: '+50', label: '+50%', operation: 'expand', degree: 3 },
 ] as const
+
+type ZoomSegment = typeof zoomSegments[number]['id'] | 'accept' | 'reject'
 
 const reviewSegments = [
   { id: 'reject', label: 'Reject' },
   { id: 'accept', label: 'Accept' },
 ] as const
 
-export function ControlBar({ menuRef, settings, visible, anchor, disabled, loading, onContract, onExpand, review }: ControlBarProps) {
+export function ControlBar({ menuRef, settings, visible, anchor, disabled, loading, onZoom, review }: ControlBarProps) {
   const reduceMotion = useReducedMotion()
   const fieldsetRef = useRef<HTMLFieldSetElement>(null)
   const [contentWidth, setContentWidth] = useState<number>()
@@ -115,12 +120,12 @@ export function ControlBar({ menuRef, settings, visible, anchor, disabled, loadi
           ) : (
             <SegmentedController<ZoomSegment>
               bordered={false}
-              label={reviewing ? 'Zoom result' : 'Text selection actions'}
+              label={reviewing ? 'Zoom result' : 'Semantic zoom strength'}
               items={reviewing ? reviewSegments : zoomSegments}
               value="idle"
               onChange={(value) => {
-                if (value === 'contract') onContract()
-                if (value === 'expand') onExpand()
+                const stop = zoomSegments.find(({ id }) => id === value)
+                if (stop && 'operation' in stop) onZoom(stop.operation, stop.degree)
                 if (value === 'accept') review?.onAccept()
                 if (value === 'reject') review?.onReject()
               }}
