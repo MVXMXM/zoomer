@@ -1,39 +1,89 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Microscope, MoveHorizontal, Telescope } from 'lucide-react'
+import { DEFAULT_GLASS_SETTINGS, GlassTuner, type GlassSettings } from '@/app/components/GlassTuner'
+import { createLensMap } from '@/app/lib/glassRefraction'
 import type { ZoomOperation } from '@/app/types/zoom'
 
 type ControlBarProps = {
   visible: boolean
+  anchor: {
+    x: number
+    y: number
+    placement: 'above' | 'below'
+  } | null
+  sourceRef: React.RefObject<HTMLTextAreaElement | null>
+  sourceText: string
   disabled: boolean
   onContract: () => void
   onExpand: () => void
 }
 
-export function ControlBar({ visible, disabled, onContract, onExpand }: ControlBarProps) {
+type SourceGeometry = {
+  left: number
+  top: number
+  width: number
+  height: number
+  fontFamily: string
+  fontSize: string
+  fontWeight: string
+  lineHeight: string
+  letterSpacing: string
+  color: string
+}
+
+export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand }: ControlBarProps) {
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [showDragTooltip, setShowDragTooltip] = useState<ZoomOperation | null>(null)
-  const [mousePosition, setMousePosition] = useState({ x: 132, y: 48 })
+  const [glassSettings, setGlassSettings] = useState<GlassSettings>(DEFAULT_GLASS_SETTINGS)
+  const [sourceGeometry, setSourceGeometry] = useState<SourceGeometry | null>(null)
+  const [lensMap, setLensMap] = useState('')
   const sliderRef = useRef<HTMLDivElement>(null)
-
-  const handleControlBarMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setMousePosition({ x: e.clientX - rect.left, y: e.clientY - rect.top })
-  }, [])
-
-  const handleControlBarMouseLeave = useCallback(() => {
-    setMousePosition({ x: 132, y: 48 })
-  }, [])
-
+  const showGlassTuner = process.env.NODE_ENV === 'development'
+  const filterInstanceId = useId().replace(/:/g, '')
+  // The reference playground's 70 × 60 lens maps to this component's 264 × 96 resting size.
+  const controlWidth = Math.round(184 + (glassSettings.width - 20) * 1.6)
+  const controlHeight = Math.round(64 + (glassSettings.height - 20) * 0.8)
+  const controlRadius = Math.min(controlHeight / 2, (glassSettings.borderRadius / 60) * controlHeight)
+  const controlTop = anchor
+    ? anchor.y - (anchor.placement === 'above' ? controlHeight - 96 : 0)
+    : null
+  const displacementScale = glassSettings.scale * 200
+  const chromaOffset = glassSettings.chroma * 6
+  const filterId = `glass-content-${filterInstanceId}-${controlWidth}-${controlHeight}-${Math.round(controlRadius)}-${Math.round(glassSettings.scale * 1000)}-${glassSettings.depth}-${glassSettings.curvature}-${Math.round(glassSettings.splay * 100)}-${Math.round(glassSettings.chroma * 100)}-${Math.round(glassSettings.blur * 10)}`
   useEffect(() => {
-    const pointLight = document.getElementById('point-light')
-    if (pointLight) {
-      pointLight.setAttribute('x', mousePosition.x.toString())
-      pointLight.setAttribute('y', mousePosition.y.toString())
-    }
-  }, [mousePosition])
+    setLensMap(
+      createLensMap({
+        width: controlWidth,
+        height: controlHeight,
+        radius: controlRadius,
+        depth: glassSettings.depth * (controlHeight / 60),
+        curvature: glassSettings.curvature,
+        splay: glassSettings.splay,
+      }),
+    )
+  }, [controlHeight, controlRadius, controlWidth, glassSettings.curvature, glassSettings.depth, glassSettings.splay])
+
+  useLayoutEffect(() => {
+    const textarea = sourceRef.current
+    if (!visible || !anchor || !textarea) return
+    const rect = textarea.getBoundingClientRect()
+    const style = window.getComputedStyle(textarea)
+    setSourceGeometry({
+      left: rect.left - textarea.scrollLeft - (anchor.x - controlWidth / 2),
+      top: rect.top - textarea.scrollTop - (controlTop ?? anchor.y),
+      width: rect.width,
+      height: Math.max(rect.height, textarea.scrollHeight),
+      fontFamily: style.fontFamily,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+      lineHeight: style.lineHeight,
+      letterSpacing: style.letterSpacing,
+      color: style.color,
+    })
+  }, [anchor, controlTop, controlWidth, sourceRef, sourceText, visible])
 
   const handleSliderDrag = useCallback(
     (event: MouseEvent | TouchEvent) => {
@@ -106,72 +156,120 @@ export function ControlBar({ visible, disabled, onContract, onExpand }: ControlB
     <>
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>
-          <filter id="lighting" x="-50%" y="-50%" width="200%" height="200%">
-            <feSpecularLighting
-              id="slider-light"
-              specularConstant="8"
-              specularExponent="120"
-              surfaceScale="2"
-              lightingColor="#00d4ff"
-            >
-              <fePointLight id="point-light" x="128" y="48" z="100" />
-            </feSpecularLighting>
-            <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" />
-          </filter>
+          {lensMap && (
+            <filter id={filterId} x="-20%" y="-30%" width="140%" height="160%" colorInterpolationFilters="sRGB">
+              <feImage
+                href={lensMap}
+                x="0"
+                y="0"
+                width={controlWidth}
+                height={controlHeight}
+                preserveAspectRatio="none"
+                result="lens-map"
+              />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="lens-map"
+                scale={displacementScale}
+                xChannelSelector="R"
+                yChannelSelector="G"
+                result="refracted"
+              />
+              <feGaussianBlur
+                in="refracted"
+                stdDeviation={3.2 + glassSettings.blur * 2}
+                result="displaced"
+              />
+              <feOffset in="displaced" dx={-chromaOffset} result="red-offset" />
+              <feFlood floodColor="#ff453a" floodOpacity={glassSettings.chroma * 0.5} result="red-color" />
+              <feComposite in="red-color" in2="red-offset" operator="in" result="red-fringe" />
+              <feOffset in="displaced" dx={chromaOffset} result="blue-offset" />
+              <feFlood floodColor="#32ade6" floodOpacity={glassSettings.chroma * 0.45} result="blue-color" />
+              <feComposite in="blue-color" in2="blue-offset" operator="in" result="blue-fringe" />
+              <feMerge>
+                <feMergeNode in="red-fringe" />
+                <feMergeNode in="blue-fringe" />
+                <feMergeNode in="displaced" />
+              </feMerge>
+            </filter>
+          )}
         </defs>
       </svg>
 
+      {showGlassTuner && <GlassTuner value={glassSettings} onChange={setGlassSettings} />}
+
       <div
-        className="fixed left-1/2 -translate-x-1/2 z-50 transition-all duration-500 ease-in-out"
-        style={{ zIndex: 9999, bottom: visible ? '24px' : '-100px' }}
+        aria-hidden={!visible}
+        inert={!visible}
+        className="fixed z-50"
+        style={{
+          zIndex: 9999,
+          left: anchor?.x ?? '50%',
+          top: controlTop ?? '100%',
+          opacity: visible ? 1 : 0,
+          pointerEvents: visible ? 'auto' : 'none',
+          transform: 'translate3d(-50%, 0, 0)',
+        }}
       >
         <div
           ref={sliderRef}
-          className="control-container relative w-[264px] h-24 rounded-full flex items-center justify-between px-4 backdrop-blur-[30px] border border-slate-200"
+          className="control-container liquid-glass relative flex items-center justify-between px-4"
           style={{
-            '--border': '1',
             position: 'relative',
-            background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(196, 196, 196, 0.5) 100%)',
-            boxShadow: '0 0 40px 0 rgba(179, 179, 179, 0.15), 0 8px 32px 0 rgba(31, 38, 135, 0.2)',
+            width: controlWidth,
+            height: controlHeight,
+            borderRadius: controlRadius,
+            '--glass-glow': glassSettings.glow,
+            '--glass-glow-wide': glassSettings.glow * 0.45,
+            '--glass-edge-highlight': glassSettings.edgeHighlight,
+            '--glass-rim': 0.38 + glassSettings.edgeHighlight * 0.62,
+            '--glass-specular-angle': `${glassSettings.specularAngle}deg`,
+            '--glass-specular-cross-angle': `${(glassSettings.specularAngle + 90) % 360}deg`,
+            '--glass-icon-size': '29px',
           } as React.CSSProperties}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
             e.preventDefault()
           }}
-          onMouseMove={handleControlBarMouseMove}
-          onMouseLeave={handleControlBarMouseLeave}
         >
-          <div
-            className="absolute rounded-full pointer-events-none"
-            style={{
-              inset: '-1px',
-              border: `calc(var(--border) * 1px) solid transparent`,
-              background: 'transparent',
-              mask: 'linear-gradient(transparent 0 100%) padding-box, linear-gradient(#fff 0 100%) border-box',
-              maskComposite: 'intersect',
-              filter: 'url(#lighting)',
-            }}
-          />
+          <div className="liquid-glass-surface" aria-hidden="true">
+            {sourceGeometry && (
+              <div
+                className="glass-refraction-viewport"
+                style={{
+                  filter: `url(#${filterId})`,
+                  opacity: 0.55,
+                }}
+              >
+                <div
+                  className="glass-refraction-content"
+                  style={{
+                    left: sourceGeometry.left,
+                    top: sourceGeometry.top,
+                    width: sourceGeometry.width,
+                    minHeight: sourceGeometry.height,
+                    fontFamily: sourceGeometry.fontFamily,
+                    fontSize: sourceGeometry.fontSize,
+                    fontWeight: sourceGeometry.fontWeight,
+                    lineHeight: sourceGeometry.lineHeight,
+                    letterSpacing: sourceGeometry.letterSpacing,
+                    color: sourceGeometry.color,
+                  }}
+                >
+                  {sourceText}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="liquid-glass-rim" aria-hidden="true" />
 
           <button
-            className="w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative group"
+            className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative z-10 group"
             onClick={() => fire('contract')}
             disabled={disabled}
             type="button"
-            style={{
-              background:
-                'linear-gradient(180deg, rgba(180, 195, 216, 0.75) 0%, rgba(180, 195, 216, 0.5) 50%, rgba(223, 233, 242, 0.25) 100%)',
-              boxShadow: '0 0 15px rgba(255, 255, 255, 0.4)',
-              transition: 'box-shadow 0.2s ease-in-out',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow = '0 0 25px rgba(255, 255, 255, 0.8)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.4)'
-            }}
           >
-            <Microscope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+            <Microscope className="glass-action-icon text-[#111318]" strokeWidth={2.35} />
             <div
               className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
                 showDragTooltip === 'contract'
@@ -183,29 +281,17 @@ export function ControlBar({ visible, disabled, onContract, onExpand }: ControlB
             </div>
           </button>
 
-          <div className="w-[64px] h-[64px] flex items-center justify-center">
-            <MoveHorizontal className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+          <div className="w-[64px] h-[64px] flex items-center justify-center relative z-10">
+            <MoveHorizontal className="w-[22px] h-[22px] text-slate-600" strokeWidth={2.15} />
           </div>
 
           <button
-            className="w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative group"
+            className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative z-10 group"
             onClick={() => fire('expand')}
             disabled={disabled}
             type="button"
-            style={{
-              background:
-                'linear-gradient(180deg, rgba(180, 195, 216, 0.75) 0%, rgba(180, 195, 216, 0.5) 50%, rgba(223, 233, 242, 0.25) 100%)',
-              boxShadow: '0 0 15px rgba(255, 255, 255, 0.4)',
-              transition: 'box-shadow 0.2s ease-in-out',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow = '0 0 25px rgba(255, 255, 255, 0.8)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.4)'
-            }}
           >
-            <Telescope className="w-[24px] h-[24px] text-slate-800" strokeWidth={2} />
+            <Telescope className="glass-action-icon text-[#111318]" strokeWidth={2.35} />
             <div
               className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
                 showDragTooltip === 'expand'
