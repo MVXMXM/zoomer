@@ -75,3 +75,60 @@ body {
     text-wrap: balance;
   }
 }
+
+/* A small analog tuning deck, with an illuminated scale and a ridged fader. */
+.radio-control {
+  width: min(320px, calc(100vw - 32px));
+  padding: 13px 18px 10px;
+  border: 1px solid #b5b0a3;
+  border-radius: 11px;
+  background: repeating-linear-gradient(0deg, #ffffff12 0px, #ffffff12 1px, transparent 1px, transparent 3px), linear-gradient(180deg, #f1eee5, #d9d6cc);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -2px 2px #a9a69b66, 0 3px 4px #38352b15, 0 14px 32px #38352b20;
+  user-select: none;
+  color: #5c5a50;
+}
+.radio-heading, .radio-heading-detail, .radio-labels, .radio-labels button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.radio-heading {
+  margin-bottom: 10px;
+  font-size: 10px;
+  line-height: 12px;
+  font-weight: 800;
+  letter-spacing: 2.4px;
+}
+.radio-heading-detail { gap: 6px; font-size: 7px; letter-spacing: 1.4px; font-weight: 600; }
+.radio-heading-detail i { width: 4px; height: 4px; border-radius: 50%; background: #b56539; box-shadow: 0 0 4px #c77b4c55; }
+.radio-dial {
+  position: relative;
+  height: 43px;
+  overflow: hidden;
+  border: 1px solid #77776a;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #242d2b, #39413a 75%, #313a33);
+  box-shadow: inset 0 3px 7px #0009, 0 1px 0 #fff9;
+  color: #d5c995;
+}
+.radio-numbers { display: flex; justify-content: space-between; margin: 6px 12px 0; font-family: monospace; font-size: 9px; line-height: 11px; }
+.radio-ticks { display: flex; align-items: flex-end; justify-content: space-between; margin: 4px 13px 0; height: 13px; }
+.radio-ticks i { display: block; width: 1px; height: 5px; background: #c2bd8c88; }
+.radio-ticks i.major { height: 12px; background: #d8ce9d; }
+.radio-needle { position: absolute; top: 3px; bottom: 0; width: 2px; transform: translateX(-50%); background: #ed8056; box-shadow: 0 0 5px #f1825466; transition: left 160ms ease-out; }
+.radio-slider { position: relative; height: 30px; margin-top: 2px; cursor: ew-resize; touch-action: none; border-radius: 4px; }
+.radio-slot { position: absolute; top: 13px; left: 7px; right: 7px; height: 5px; background: #494a43; border-radius: 4px; box-shadow: inset 0 2px 2px #0008, 0 1px 0 #fff; }
+.radio-thumb { display: flex; justify-content: center; align-items: center; gap: 3px; position: absolute; top: 5px; width: 32px; height: 23px; transform: translateX(-50%); border: 1px solid #999b90; border-radius: 3px; background: linear-gradient(#f9f8ee, #dfded2 48%, #bcbcaf 52%, #d6d7ca); box-shadow: inset 0 1px 0 #fff, 0 2px 3px #0005; transition: left 160ms ease-out; }
+.radio-thumb i { width: 1px; height: 12px; background: #91958a; box-shadow: 1px 0 0 #ffffffe0; }
+.radio-slider[data-dragging='true'] .radio-thumb, .radio-control:has([data-dragging='true']) .radio-needle { transition: none; }
+.radio-slider:focus-visible { outline: 2px solid #9b572f; outline-offset: 2px; }
+.radio-labels { margin-top: 3px; }
+.radio-labels button { gap: 5px; padding: 2px 0; color: #55574d; font-family: inherit; font-size: 9px; font-weight: 600; background: none; border: 0; cursor: pointer; }
+.radio-labels button:hover { color: #ad552e; }
+.radio-labels button:focus-visible { outline: 2px solid #9b572f; outline-offset: 3px; border-radius: 2px; }
+.radio-labels > span { color: #8b8c80; font-size: 6px; letter-spacing: 1.5px; }
+.radio-control[data-disabled='true'] { filter: saturate(.5); }
+.radio-control[data-disabled='true'] .radio-slider, .radio-labels button:disabled { cursor: not-allowed; opacity: .5; }
+@media (prefers-reduced-motion: reduce) {
+  .radio-control-position, .radio-thumb, .radio-needle { transition: none; }
+}
