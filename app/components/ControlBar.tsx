@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useState } from 'react'
 import { Microscope, Telescope } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
 import type { GlassSettings } from '@/app/lib/glassSettings'
 import { createLensMap } from '@/app/lib/glassRefraction'
 
@@ -34,6 +35,9 @@ type SourceGeometry = {
 }
 
 export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand }: ControlBarProps) {
+  const reduceMotion = useReducedMotion()
+  const menuMotion = settings.motion
+  const hiddenOffset = (anchor?.placement === 'above' ? 1 : -1) * menuMotion.distance
   const glassSettings = { ...settings.shape, ...settings.refraction, ...settings.lighting }
   const [sourceGeometry, setSourceGeometry] = useState<SourceGeometry | null>(null)
   const [lensMap, setLensMap] = useState('')
@@ -129,17 +133,35 @@ export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, d
           zIndex: 9999,
           left: anchor?.x ?? '50%',
           top: controlTop ?? '100%',
-          opacity: visible ? 1 : 0,
           pointerEvents: visible ? 'auto' : 'none',
           transform: 'translate3d(-50%, 0, 0)',
         }}
       >
-        <div
+        <motion.div
+          initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.94, y: reduceMotion ? 0 : hiddenOffset }}
+          animate={{
+            opacity: visible ? 1 : 0,
+            scale: reduceMotion || visible ? 1 : 0.94,
+            y: reduceMotion || visible ? 0 : hiddenOffset,
+          }}
+          transition={reduceMotion
+            ? { duration: 0.1 }
+            : {
+                opacity: { duration: visible ? Math.min(0.16, menuMotion.enterDuration) : menuMotion.exitDuration },
+                scale: visible
+                  ? { type: 'spring', visualDuration: menuMotion.enterDuration, bounce: menuMotion.bounce }
+                  : { duration: menuMotion.exitDuration, ease: 'easeIn' },
+                y: visible
+                  ? { type: 'spring', visualDuration: menuMotion.enterDuration, bounce: menuMotion.bounce }
+                  : { duration: menuMotion.exitDuration, ease: 'easeIn' },
+              }
+          }
           role="group"
           aria-label="Text selection actions"
           className="control-container liquid-glass relative flex items-center p-1.5"
           style={{
             position: 'relative',
+            transformOrigin: anchor?.placement === 'above' ? '50% 100%' : '50% 0%',
             width: controlWidth,
             height: controlHeight,
             borderRadius: controlRadius,
@@ -210,7 +232,7 @@ export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, d
             <Telescope className="glass-action-icon" strokeWidth={2} aria-hidden="true" />
             <span>Extrapolate</span>
           </button>
-        </div>
+        </motion.div>
       </div>
     </>
   )
