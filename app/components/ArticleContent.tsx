@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import { useDialKit } from 'dialkit'
+import { GLASS_DIALS } from '@/app/lib/glassSettings'
 import { ControlBar } from '@/app/components/ControlBar'
 import { WordBlurOverlay, type BlurPhase } from '@/app/components/WordBlurOverlay'
 import { ZoomDiffReview } from '@/app/components/ZoomDiffReview'
@@ -11,9 +13,6 @@ import type { RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomArticleProps } from '@/app/types/zoom'
 
 const REST_HEIGHT = 'calc(100dvh - 96px - 32px)'
-const CONTROL_WIDTH = 264
-const CONTROL_HEIGHT = 96
-const CONTROL_GAP = 12
 const VIEWPORT_MARGIN = 12
 
 type ControlAnchor = {
@@ -81,7 +80,7 @@ function getSelectionRects(textarea: HTMLTextAreaElement) {
   return rects
 }
 
-function getControlAnchor(textarea: HTMLTextAreaElement): ControlAnchor | null {
+function getControlAnchor(textarea: HTMLTextAreaElement, width: number, height: number, gap: number): ControlAnchor | null {
   const rects = getSelectionRects(textarea)
   if (!rects.length) return null
 
@@ -90,18 +89,18 @@ function getControlAnchor(textarea: HTMLTextAreaElement): ControlAnchor | null {
   const left = Math.min(...rects.map((rect) => rect.left))
   const right = Math.max(...rects.map((rect) => rect.right))
   const x = Math.min(
-    window.innerWidth - VIEWPORT_MARGIN - CONTROL_WIDTH / 2,
-    Math.max(VIEWPORT_MARGIN + CONTROL_WIDTH / 2, (left + right) / 2),
+    window.innerWidth - VIEWPORT_MARGIN - width / 2,
+    Math.max(VIEWPORT_MARGIN + width / 2, (left + right) / 2),
   )
-  const belowY = last.bottom + CONTROL_GAP
-  const aboveY = first.top - CONTROL_GAP - CONTROL_HEIGHT
-  const roomBelow = belowY + CONTROL_HEIGHT <= window.innerHeight - VIEWPORT_MARGIN
+  const belowY = last.bottom + gap
+  const aboveY = first.top - gap - height
+  const roomBelow = belowY + height <= window.innerHeight - VIEWPORT_MARGIN
   const roomAbove = aboveY >= VIEWPORT_MARGIN
 
   if (roomBelow || !roomAbove) {
     return {
       x,
-      y: Math.min(window.innerHeight - VIEWPORT_MARGIN - CONTROL_HEIGHT, Math.max(VIEWPORT_MARGIN, belowY)),
+      y: Math.min(window.innerHeight - VIEWPORT_MARGIN - height, Math.max(VIEWPORT_MARGIN, belowY)),
       placement: 'below',
     }
   }
@@ -112,6 +111,8 @@ function getControlAnchor(textarea: HTMLTextAreaElement): ControlAnchor | null {
 type ZoomPhase = 'idle' | BlurPhase
 
 export function ArticleContent(props: ZoomArticleProps) {
+  const glassSettings = useDialKit('Selection glass', GLASS_DIALS)
+  const { width: controlWidth, height: controlHeight, selectionGap } = glassSettings.shape
   const { onTransitioningChange } = props
   const {
     content,
@@ -148,9 +149,9 @@ export function ArticleContent(props: ZoomArticleProps) {
   const updateControlAnchor = useCallback(() => {
     const textarea = textareaRef.current
     if (!textarea || textarea.selectionStart === textarea.selectionEnd) return
-    const nextAnchor = getControlAnchor(textarea)
+    const nextAnchor = getControlAnchor(textarea, controlWidth, controlHeight, selectionGap)
     if (nextAnchor) setControlAnchor(nextAnchor)
-  }, [textareaRef])
+  }, [textareaRef, controlWidth, controlHeight, selectionGap])
 
   const handleSelectionChange = useCallback(() => {
     rememberSelection()
@@ -159,6 +160,7 @@ export function ArticleContent(props: ZoomArticleProps) {
 
   useEffect(() => {
     if (!hasSelection || overlayOpen) return
+    updateControlAnchor()
     let frame = 0
     const update = () => {
       cancelAnimationFrame(frame)
@@ -379,7 +381,7 @@ export function ArticleContent(props: ZoomArticleProps) {
           isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
         }`}
         style={{
-          caretColor: '#06b6d4',
+          caretColor: 'var(--workspace-accent, #06b6d4)',
           height: shouldExpand || overlayOpen ? '100%' : 'auto',
           overflow: 'hidden',
           letterSpacing: '-0.01em',
@@ -399,6 +401,7 @@ export function ArticleContent(props: ZoomArticleProps) {
       />
 
       <ControlBar
+        settings={glassSettings}
         visible={hasSelection && !overlayOpen && !!controlAnchor}
         anchor={controlAnchor}
         sourceRef={textareaRef}

@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { Microscope, MoveHorizontal, Telescope } from 'lucide-react'
-import { DEFAULT_GLASS_SETTINGS, GlassTuner, type GlassSettings } from '@/app/components/GlassTuner'
+import type { GlassSettings } from '@/app/lib/glassSettings'
 import { createLensMap } from '@/app/lib/glassRefraction'
 import type { ZoomOperation } from '@/app/types/zoom'
 
 type ControlBarProps = {
+  settings: GlassSettings
   visible: boolean
   anchor: {
     x: number
@@ -33,23 +34,19 @@ type SourceGeometry = {
   color: string
 }
 
-export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand }: ControlBarProps) {
+export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand }: ControlBarProps) {
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [showDragTooltip, setShowDragTooltip] = useState<ZoomOperation | null>(null)
-  const [glassSettings, setGlassSettings] = useState<GlassSettings>(DEFAULT_GLASS_SETTINGS)
+  const glassSettings = { ...settings.shape, ...settings.refraction, ...settings.lighting }
   const [sourceGeometry, setSourceGeometry] = useState<SourceGeometry | null>(null)
   const [lensMap, setLensMap] = useState('')
   const sliderRef = useRef<HTMLDivElement>(null)
-  const showGlassTuner = process.env.NODE_ENV === 'development'
   const filterInstanceId = useId().replace(/:/g, '')
-  // The reference playground's 70 × 60 lens maps to this component's 264 × 96 resting size.
-  const controlWidth = Math.round(184 + (glassSettings.width - 20) * 1.6)
-  const controlHeight = Math.round(64 + (glassSettings.height - 20) * 0.8)
-  const controlRadius = Math.min(controlHeight / 2, (glassSettings.borderRadius / 60) * controlHeight)
-  const controlTop = anchor
-    ? anchor.y - (anchor.placement === 'above' ? controlHeight - 96 : 0)
-    : null
+  const controlWidth = glassSettings.width
+  const controlHeight = glassSettings.height
+  const controlRadius = Math.min(controlHeight / 2, glassSettings.borderRadius)
+  const controlTop = anchor?.y ?? null
   const displacementScale = glassSettings.scale * 200
   const chromaOffset = glassSettings.chroma * 6
   const filterId = `glass-content-${filterInstanceId}-${controlWidth}-${controlHeight}-${Math.round(controlRadius)}-${Math.round(glassSettings.scale * 1000)}-${glassSettings.depth}-${glassSettings.curvature}-${Math.round(glassSettings.splay * 100)}-${Math.round(glassSettings.chroma * 100)}-${Math.round(glassSettings.blur * 10)}`
@@ -196,8 +193,6 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
         </defs>
       </svg>
 
-      {showGlassTuner && <GlassTuner value={glassSettings} onChange={setGlassSettings} />}
-
       <div
         aria-hidden={!visible}
         inert={!visible}
@@ -225,7 +220,7 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
             '--glass-rim': 0.38 + glassSettings.edgeHighlight * 0.62,
             '--glass-specular-angle': `${glassSettings.specularAngle}deg`,
             '--glass-specular-cross-angle': `${(glassSettings.specularAngle + 90) % 360}deg`,
-            '--glass-icon-size': '29px',
+            '--glass-icon-size': `${glassSettings.iconSize}px`,
           } as React.CSSProperties}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
