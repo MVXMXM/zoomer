@@ -216,6 +216,8 @@ export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, d
           <button
             className="liquid-glass-button glass-menu-action"
             onClick={onContract}
+            title="Distill (←)"
+            aria-keyshortcuts="ArrowLeft"
             disabled={disabled}
             type="button"
           >
@@ -226,6 +228,8 @@ export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, d
           <button
             className="liquid-glass-button glass-menu-action"
             onClick={onExpand}
+            title="Extrapolate (→)"
+            aria-keyshortcuts="ArrowRight"
             disabled={disabled}
             type="button"
           >

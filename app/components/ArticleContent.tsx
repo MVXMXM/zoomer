@@ -226,10 +226,21 @@ export function ArticleContent(props: ZoomArticleProps) {
     })
   }, [handleRewrite, onSettled])
 
-  // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
+  // Bare arrows rewrite the active selection; modified arrows keep native navigation.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing) return
       const withCmd = event.metaKey || event.ctrlKey
+      if (!withCmd && !event.altKey && !event.shiftKey &&
+          (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        const textarea = textareaRef.current
+        if (!textarea || event.target !== textarea ||
+            !textarea.value.slice(textarea.selectionStart, textarea.selectionEnd).trim()) return
+        event.preventDefault()
+        if (event.repeat || isLoading || overlayOpen || activeButton) return
+        start(event.key === 'ArrowRight' ? 'expand' : 'contract')
+        return
+      }
       if (!withCmd || event.altKey) return
 
       const key = event.key.toLowerCase()
@@ -253,17 +264,11 @@ export function ArticleContent(props: ZoomArticleProps) {
         return
       }
 
-      const subtract = key === '-' || event.code === 'Minus' || event.code === 'NumpadSubtract'
-      const add = key === '+' || key === '=' || event.code === 'Equal' || event.code === 'NumpadAdd'
-      if (!subtract && !add) return
-      event.preventDefault()
-      if (isLoading || overlayOpen || activeButton) return
-      start(add ? 'expand' : 'contract')
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isLoading, overlayOpen, activeButton, start, abortRewrite, undo, redo, playMorph])
+  }, [isLoading, overlayOpen, activeButton, start, abortRewrite, undo, redo, playMorph, textareaRef])
 
   return (
     <div

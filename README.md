@@ -4,8 +4,8 @@ Semantic zoom for text — expand or contract content while preserving meaning u
 
 ## Features
 
-- **Extrapolate (zoom out `⌘+`)**: Add detail and clarity to your text
-- **Distill (zoom in `⌘-`)**: Simplify text to its core concepts
+- **Extrapolate (`→` with text highlighted)**: Add detail and clarity to your selection
+- **Distill (`←` with text highlighted)**: Simplify your selection to its core concepts
 
 ## References
 
