@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { Microscope, MoveHorizontal, Telescope } from 'lucide-react'
-import { DEFAULT_GLASS_SETTINGS, GlassTuner, type GlassSettings } from '@/app/components/GlassTuner'
+import { useEffect, useId, useLayoutEffect, useState } from 'react'
+import { Microscope, Telescope } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
+import type { GlassSettings } from '@/app/lib/glassSettings'
 import { createLensMap } from '@/app/lib/glassRefraction'
-import type { ZoomOperation } from '@/app/types/zoom'
 
 type ControlBarProps = {
+  settings: GlassSettings
   visible: boolean
   anchor: {
     x: number
@@ -33,25 +34,20 @@ type SourceGeometry = {
   color: string
 }
 
-export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand }: ControlBarProps) {
-  const [sliderPosition, setSliderPosition] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const [showDragTooltip, setShowDragTooltip] = useState<ZoomOperation | null>(null)
-  const [glassSettings, setGlassSettings] = useState<GlassSettings>(DEFAULT_GLASS_SETTINGS)
+export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand }: ControlBarProps) {
+  const reduceMotion = useReducedMotion()
+  const menuMotion = settings.motion
+  const hiddenOffset = (anchor?.placement === 'above' ? 1 : -1) * menuMotion.distance
+  const glassSettings = { ...settings.shape, ...settings.refraction, ...settings.lighting }
   const [sourceGeometry, setSourceGeometry] = useState<SourceGeometry | null>(null)
   const [lensMap, setLensMap] = useState('')
-  const sliderRef = useRef<HTMLDivElement>(null)
-  const showGlassTuner = process.env.NODE_ENV === 'development'
   const filterInstanceId = useId().replace(/:/g, '')
-  // The reference playground's 70 × 60 lens maps to this component's 264 × 96 resting size.
-  const controlWidth = Math.round(184 + (glassSettings.width - 20) * 1.6)
-  const controlHeight = Math.round(64 + (glassSettings.height - 20) * 0.8)
-  const controlRadius = Math.min(controlHeight / 2, (glassSettings.borderRadius / 60) * controlHeight)
-  const controlTop = anchor
-    ? anchor.y - (anchor.placement === 'above' ? controlHeight - 96 : 0)
-    : null
+  const controlWidth = glassSettings.width
+  const controlHeight = glassSettings.height
+  const controlRadius = Math.min(controlHeight / 2, glassSettings.borderRadius)
+  const controlTop = anchor?.y ?? null
   const displacementScale = glassSettings.scale * 200
-  const chromaOffset = glassSettings.chroma * 6
+  const chromaOffset = glassSettings.chroma * 2
   const filterId = `glass-content-${filterInstanceId}-${controlWidth}-${controlHeight}-${Math.round(controlRadius)}-${Math.round(glassSettings.scale * 1000)}-${glassSettings.depth}-${glassSettings.curvature}-${Math.round(glassSettings.splay * 100)}-${Math.round(glassSettings.chroma * 100)}-${Math.round(glassSettings.blur * 10)}`
   useEffect(() => {
     setLensMap(
@@ -85,73 +81,6 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
     })
   }, [anchor, controlTop, controlWidth, sourceRef, sourceText, visible])
 
-  const handleSliderDrag = useCallback(
-    (event: MouseEvent | TouchEvent) => {
-      if (!isDragging || !sliderRef.current) return
-      const slider = sliderRef.current
-      const rect = slider.getBoundingClientRect()
-      const sliderWidth = rect.width - 64
-      const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX
-      const x = clientX - rect.left - 32
-      const position = Math.max(-sliderWidth / 2, Math.min(sliderWidth / 2, x - sliderWidth / 2))
-      setSliderPosition(position)
-      const threshold = 20
-      if (position < -threshold) setShowDragTooltip('contract')
-      else if (position > threshold) setShowDragTooltip('expand')
-      else setShowDragTooltip(null)
-    },
-    [isDragging],
-  )
-
-  const handleSliderStart = useCallback(
-    (event: React.MouseEvent | React.TouchEvent) => {
-      if (disabled) return
-      setIsDragging(true)
-      event.preventDefault()
-    },
-    [disabled],
-  )
-
-  const handleSliderEnd = useCallback(() => {
-    if (!isDragging) return
-    const threshold = 50
-    if (Math.abs(sliderPosition) > threshold) {
-      if (sliderPosition < -threshold) onContract()
-      else onExpand()
-    } else {
-      setSliderPosition(0)
-    }
-    setIsDragging(false)
-    setShowDragTooltip(null)
-  }, [isDragging, sliderPosition, onContract, onExpand])
-
-  useEffect(() => {
-    if (!isDragging) return
-    const handleMove = (e: MouseEvent | TouchEvent) => handleSliderDrag(e)
-    const handleEnd = () => handleSliderEnd()
-    document.addEventListener('mousemove', handleMove)
-    document.addEventListener('mouseup', handleEnd)
-    document.addEventListener('touchmove', handleMove)
-    document.addEventListener('touchend', handleEnd)
-    return () => {
-      document.removeEventListener('mousemove', handleMove)
-      document.removeEventListener('mouseup', handleEnd)
-      document.removeEventListener('touchmove', handleMove)
-      document.removeEventListener('touchend', handleEnd)
-    }
-  }, [isDragging, handleSliderDrag, handleSliderEnd])
-
-  useEffect(() => {
-    if (disabled) setSliderPosition(0)
-  }, [disabled])
-
-  const fire = (operation: ZoomOperation) => {
-    if (disabled) return
-    setSliderPosition(operation === 'expand' ? 84 : -84)
-    if (operation === 'expand') onExpand()
-    else onContract()
-  }
-
   return (
     <>
       <svg width="0" height="0" style={{ position: 'absolute' }}>
@@ -177,14 +106,14 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
               />
               <feGaussianBlur
                 in="refracted"
-                stdDeviation={3.2 + glassSettings.blur * 2}
+                stdDeviation={1.8 + glassSettings.blur * 1.5}
                 result="displaced"
               />
               <feOffset in="displaced" dx={-chromaOffset} result="red-offset" />
-              <feFlood floodColor="#ff453a" floodOpacity={glassSettings.chroma * 0.5} result="red-color" />
+              <feFlood floodColor="#ff453a" floodOpacity={glassSettings.chroma * 0.18} result="red-color" />
               <feComposite in="red-color" in2="red-offset" operator="in" result="red-fringe" />
               <feOffset in="displaced" dx={chromaOffset} result="blue-offset" />
-              <feFlood floodColor="#32ade6" floodOpacity={glassSettings.chroma * 0.45} result="blue-color" />
+              <feFlood floodColor="#32ade6" floodOpacity={glassSettings.chroma * 0.16} result="blue-color" />
               <feComposite in="blue-color" in2="blue-offset" operator="in" result="blue-fringe" />
               <feMerge>
                 <feMergeNode in="red-fringe" />
@@ -196,8 +125,6 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
         </defs>
       </svg>
 
-      {showGlassTuner && <GlassTuner value={glassSettings} onChange={setGlassSettings} />}
-
       <div
         aria-hidden={!visible}
         inert={!visible}
@@ -206,26 +133,49 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
           zIndex: 9999,
           left: anchor?.x ?? '50%',
           top: controlTop ?? '100%',
-          opacity: visible ? 1 : 0,
           pointerEvents: visible ? 'auto' : 'none',
           transform: 'translate3d(-50%, 0, 0)',
         }}
       >
-        <div
-          ref={sliderRef}
-          className="control-container liquid-glass relative flex items-center justify-between px-4"
+        <motion.div
+          initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.94, y: reduceMotion ? 0 : hiddenOffset }}
+          animate={{
+            opacity: visible ? 1 : 0,
+            scale: reduceMotion || visible ? 1 : 0.94,
+            y: reduceMotion || visible ? 0 : hiddenOffset,
+          }}
+          transition={reduceMotion
+            ? { duration: 0.1 }
+            : {
+                opacity: { duration: visible ? Math.min(0.16, menuMotion.enterDuration) : menuMotion.exitDuration },
+                scale: visible
+                  ? { type: 'spring', visualDuration: menuMotion.enterDuration, bounce: menuMotion.bounce }
+                  : { duration: menuMotion.exitDuration, ease: 'easeIn' },
+                y: visible
+                  ? { type: 'spring', visualDuration: menuMotion.enterDuration, bounce: menuMotion.bounce }
+                  : { duration: menuMotion.exitDuration, ease: 'easeIn' },
+              }
+          }
+          role="group"
+          aria-label="Text selection actions"
+          className="control-container liquid-glass relative flex items-center p-1.5"
           style={{
             position: 'relative',
+            transformOrigin: anchor?.placement === 'above' ? '50% 100%' : '50% 0%',
             width: controlWidth,
             height: controlHeight,
             borderRadius: controlRadius,
             '--glass-glow': glassSettings.glow,
-            '--glass-glow-wide': glassSettings.glow * 0.45,
+            '--glass-glow-wide': glassSettings.glow * 0.25,
             '--glass-edge-highlight': glassSettings.edgeHighlight,
-            '--glass-rim': 0.38 + glassSettings.edgeHighlight * 0.62,
+            '--glass-rim': 0.55 + glassSettings.edgeHighlight * 0.45,
             '--glass-specular-angle': `${glassSettings.specularAngle}deg`,
             '--glass-specular-cross-angle': `${(glassSettings.specularAngle + 90) % 360}deg`,
-            '--glass-icon-size': '29px',
+            '--glass-icon-size': `${glassSettings.iconSize}px`,
+            '--glass-label-size': `${glassSettings.labelSize}px`,
+            '--glass-menu-radius': `${controlRadius}px`,
+            '--glass-backdrop-blur': `${glassSettings.backdropBlur}px`,
+            '--glass-tint': glassSettings.tint,
           } as React.CSSProperties}
           onMouseDown={(e) => {
             // Keep the textarea highlight when Distill / Extrapolate is clicked.
@@ -238,7 +188,7 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
                 className="glass-refraction-viewport"
                 style={{
                   filter: `url(#${filterId})`,
-                  opacity: 0.55,
+                  opacity: 0.32,
                 }}
               >
                 <div
@@ -264,45 +214,25 @@ export function ControlBar({ visible, anchor, sourceRef, sourceText, disabled, o
           <div className="liquid-glass-rim" aria-hidden="true" />
 
           <button
-            className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative z-10 group"
-            onClick={() => fire('contract')}
+            className="liquid-glass-button glass-menu-action"
+            onClick={onContract}
             disabled={disabled}
             type="button"
           >
-            <Microscope className="glass-action-icon text-[#111318]" strokeWidth={2.35} />
-            <div
-              className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
-                showDragTooltip === 'contract'
-                  ? 'opacity-100 translate-y-0'
-                  : 'opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0'
-              }`}
-            >
-              Distill
-            </div>
+            <Microscope className="glass-action-icon" strokeWidth={2} aria-hidden="true" />
+            <span>Distill</span>
           </button>
-
-          <div className="w-[64px] h-[64px] flex items-center justify-center relative z-10">
-            <MoveHorizontal className="w-[22px] h-[22px] text-slate-600" strokeWidth={2.15} />
-          </div>
 
           <button
-            className="liquid-glass-button w-[64px] h-[64px] flex items-center justify-center rounded-full hover:cursor-pointer transition-all duration-200 ease-in-out disabled:cursor-not-allowed disabled:opacity-50 relative z-10 group"
-            onClick={() => fire('expand')}
+            className="liquid-glass-button glass-menu-action"
+            onClick={onExpand}
             disabled={disabled}
             type="button"
           >
-            <Telescope className="glass-action-icon text-[#111318]" strokeWidth={2.35} />
-            <div
-              className={`absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-[10px] py-2 bg-gray-500 text-white text-xs rounded-[10px] translate-y-1 transition-all duration-200 whitespace-nowrap pointer-events-none z-50 font-bold ${
-                showDragTooltip === 'expand'
-                  ? 'opacity-100 translate-y-0'
-                  : 'opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0'
-              }`}
-            >
-              Extrapolate
-            </div>
+            <Telescope className="glass-action-icon" strokeWidth={2} aria-hidden="true" />
+            <span>Extrapolate</span>
           </button>
-        </div>
+        </motion.div>
       </div>
     </>
   )
