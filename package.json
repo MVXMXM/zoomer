@@ -10,10 +10,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "dialkit": "^2.1.0",
     "framer-motion": "^12.10.5",
     "lucide-react": "^0.562.0",
-    "motion": "^14.9.0",
     "next": "^15.5.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -24,8 +22,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dialkit": "^2.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.3.2",
+    "motion": "^14.9.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
