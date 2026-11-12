@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ControlBar } from '@/app/components/ControlBar'
-import { WordBlurOverlay } from '@/app/components/WordBlurOverlay'
+import { WordBlurOverlay, type BlurPhase } from '@/app/components/WordBlurOverlay'
+import { ZoomDiffReview } from '@/app/components/ZoomDiffReview'
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomArticleProps } from '@/app/types/zoom'
 
 const REST_HEIGHT = 'calc(100dvh - 96px - 32px)'
+
+type ZoomPhase = 'idle' | BlurPhase
 
 export function ArticleContent(props: ZoomArticleProps) {
   const { onTransitioningChange } = props
@@ -38,10 +41,17 @@ export function ArticleContent(props: ZoomArticleProps) {
   const [focusRange, setFocusRange] = useState<RewriteRange | null>(null)
   const [morphKey, setMorphKey] = useState(0)
   const [historyMorph, setHistoryMorph] = useState(false)
+  const [zoomPhase, setZoomPhase] = useState<ZoomPhase>('idle')
+  const phaseRef = useRef<ZoomPhase>('idle')
+  phaseRef.current = zoomPhase
+  const showDock = zoomPhase === 'arrive' || zoomPhase === 'review'
+  const overlayPhase: BlurPhase = historyMorph ? 'history' : zoomPhase === 'idle' ? 'stream' : zoomPhase
 
   useEffect(() => {
-    onTransitioningChange?.(historyMorph ? false : overlayOpen || isLoading)
-  }, [overlayOpen, isLoading, historyMorph, onTransitioningChange])
+    const showingResult =
+      historyMorph || zoomPhase === 'review' || zoomPhase === 'accept' || zoomPhase === 'reject'
+    onTransitioningChange?.(showingResult ? false : overlayOpen || isLoading)
+  }, [overlayOpen, isLoading, historyMorph, zoomPhase, onTransitioningChange])
 
   useEffect(() => {
     if (!overlayOpen) return
@@ -58,6 +68,8 @@ export function ArticleContent(props: ZoomArticleProps) {
   }, [])
 
   const onSettled = useCallback(() => {
+    phaseRef.current = 'idle'
+    setZoomPhase('idle')
     setOverlayOpen(false)
     setOverlayReady(false)
     setStreaming(false)
@@ -65,7 +77,30 @@ export function ArticleContent(props: ZoomArticleProps) {
     setOldText('')
     setDestText('')
     setFocusRange(null)
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [textareaRef])
+
+  const holdReview = useCallback(() => {
+    if (phaseRef.current !== 'arrive') return
+    phaseRef.current = 'review'
+    setZoomPhase('review')
+    onTransitioningChange?.(false)
+  }, [onTransitioningChange])
+
+  const acceptReview = useCallback(() => {
+    const phase = phaseRef.current
+    if (phase !== 'arrive' && phase !== 'review') return
+    phaseRef.current = 'accept'
+    setZoomPhase('accept')
   }, [])
+
+  const rejectReview = useCallback(() => {
+    const phase = phaseRef.current
+    if (phase !== 'arrive' && phase !== 'review') return
+    if (!undo()) return
+    phaseRef.current = 'reject'
+    setZoomPhase('reject')
+  }, [undo])
 
   const playMorph = useCallback((from: string, to: string) => {
     setOldText(from)
@@ -73,6 +108,8 @@ export function ArticleContent(props: ZoomArticleProps) {
     setFocusRange(null)
     setOverlayReady(false)
     setStreaming(false)
+    phaseRef.current = 'idle'
+    setZoomPhase('idle')
     setHistoryMorph(true)
     setMorphKey((key) => key + 1)
     setOverlayOpen(true)
@@ -82,6 +119,8 @@ export function ArticleContent(props: ZoomArticleProps) {
   const start = useCallback((operation: 'expand' | 'contract') => {
     void handleRewrite(operation, {
       onStart: (source, range) => {
+        phaseRef.current = 'stream'
+        setZoomPhase('stream')
         setHistoryMorph(false)
         setOldText(source)
         setDestText('')
@@ -93,15 +132,55 @@ export function ArticleContent(props: ZoomArticleProps) {
       onEnd: (full) => {
         setDestText(full)
         setStreaming(false)
+        setOverlayReady(true)
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          phaseRef.current = 'review'
+          setZoomPhase('review')
+          onTransitioningChange?.(false)
+        } else {
+          phaseRef.current = 'arrive'
+          setZoomPhase('arrive')
+        }
       },
       onError: onSettled,
     })
-  }, [handleRewrite, onSettled])
+  }, [handleRewrite, onSettled, onTransitioningChange])
 
   // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const withCmd = event.metaKey || event.ctrlKey
+      if (zoomPhase === 'accept' || zoomPhase === 'reject') {
+        const key = event.key.toLowerCase()
+        const chord = key === 'z' || key === 'y' || key === '-' || key === '+' || key === '='
+        if (event.key === 'Enter' || event.key === 'Escape' || (withCmd && chord)) event.preventDefault()
+        return
+      }
+      if (showDock) {
+        const key = event.key.toLowerCase()
+        if (event.key === 'Enter' && !withCmd && !event.altKey) {
+          event.preventDefault()
+          acceptReview()
+          return
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          rejectReview()
+          return
+        }
+        if (withCmd && !event.altKey && key === 'z' && !event.shiftKey) {
+          event.preventDefault()
+          rejectReview()
+          return
+        }
+        if (withCmd && !event.altKey) {
+          const redoKey = (key === 'z' && event.shiftKey) || (key === 'y' && event.ctrlKey && !event.metaKey)
+          const subtract = key === '-' || event.code === 'Minus' || event.code === 'NumpadSubtract'
+          const add = key === '+' || key === '=' || event.code === 'Equal' || event.code === 'NumpadAdd'
+          if (redoKey || subtract || add) event.preventDefault()
+        }
+        return
+      }
       if (!withCmd || event.altKey) return
 
       const key = event.key.toLowerCase()
@@ -135,7 +214,7 @@ export function ArticleContent(props: ZoomArticleProps) {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isLoading, overlayOpen, activeButton, start, abortRewrite, undo, redo, playMorph])
+  }, [isLoading, overlayOpen, activeButton, showDock, zoomPhase, start, abortRewrite, undo, redo, playMorph, acceptReview, rejectReview])
 
   return (
     <div
@@ -154,10 +233,14 @@ export function ArticleContent(props: ZoomArticleProps) {
           width={width}
           streaming={streaming}
           focusRange={focusRange}
+          phase={overlayPhase}
           onReady={onReady}
+          onHeld={holdReview}
           onSettled={onSettled}
         />
       )}
+
+      {showDock && <ZoomDiffReview onAccept={acceptReview} onReject={rejectReview} />}
 
       <textarea
         ref={textareaRef}
