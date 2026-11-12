@@ -114,6 +114,82 @@ function getMeasureRoot(): HTMLDivElement {
   return el
 }
 
+export type LayoutToken = {
+  text: string
+  trailing: string
+  start: number
+}
+
+export function tokenizeForLayout(text: string): { tokens: LayoutToken[]; lead: string } {
+  const tokens: LayoutToken[] = []
+  let lead = ''
+  let offset = 0
+  const lines = text.split('\n')
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]
+    let cursor = 0
+    for (const token of wrapTokens(line)) {
+      const start = offset + cursor
+      cursor += token.length
+      if (/^\s+$/.test(token)) {
+        if (tokens.length > 0) tokens[tokens.length - 1].trailing += token
+        else lead += token
+        continue
+      }
+      const space = token.match(/\s+$/)?.[0] ?? ''
+      const core = token.slice(0, token.length - space.length)
+      if (!core) continue
+      tokens.push({ text: core, trailing: space, start })
+    }
+    offset += line.length
+    if (lineIndex < lines.length - 1) {
+      if (tokens.length > 0) tokens[tokens.length - 1].trailing += '\n'
+      else lead += '\n'
+      offset += 1
+    }
+  }
+  return { tokens, lead }
+}
+
+export function placeWords(
+  pieces: { text: string; trailing: string }[],
+  width: number,
+  lead = '',
+): { x: number; y: number }[] {
+  if (!pieces.length || width <= 0 || typeof document === 'undefined') {
+    return pieces.map(() => ({ x: 0, y: 0 }))
+  }
+  const root = getMeasureRoot()
+  root.style.width = `${width}px`
+  root.replaceChildren()
+  if (lead) root.appendChild(document.createTextNode(lead))
+  const spans: HTMLSpanElement[] = []
+  for (const piece of pieces) {
+    const span = document.createElement('span')
+    const newlineAt = piece.trailing.indexOf('\n')
+    if (newlineAt === -1) {
+      span.textContent = piece.text + piece.trailing
+      root.appendChild(span)
+    } else {
+      span.textContent = piece.text + piece.trailing.slice(0, newlineAt)
+      root.appendChild(span)
+      root.appendChild(document.createTextNode(piece.trailing.slice(newlineAt)))
+    }
+    spans.push(span)
+  }
+  void root.offsetWidth
+  const origin = root.getBoundingClientRect()
+  const placed = spans.map((span) => {
+    const rect = span.getBoundingClientRect()
+    return { x: rect.left - origin.left, y: rect.top - origin.top }
+  })
+  const originY = placed.reduce((min, word) => Math.min(min, word.y), placed[0]?.y ?? 0)
+  if (originY !== 0) {
+    for (const word of placed) word.y -= originY
+  }
+  return placed
+}
+
 export function pairWords(oldHomes: WordHome[], newHomes: WordHome[]): WordPairing {
   const oldUsed = new Set<number>()
   const newUsed = new Set<number>()

@@ -61,12 +61,35 @@ body {
   animation: text-shimmer 4.2s ease-in-out infinite;
 }
 
+@keyframes review-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes review-dock-in {
+  from { opacity: 0; transform: translate(-50%, 10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.review-in {
+  animation: review-in 240ms ease-out both;
+}
+
+.review-dock-in {
+  animation: review-dock-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .text-shimmer {
     animation: none;
     background: none;
     color: #737373;
     -webkit-text-fill-color: #737373;
+  }
+
+  .review-in,
+  .review-dock-in {
+    animation: none;
   }
 }
 
