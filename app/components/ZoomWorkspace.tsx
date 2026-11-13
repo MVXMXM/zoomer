@@ -5,10 +5,11 @@ import { useDialKit } from 'dialkit'
 import { MorphingText } from '@/registry/magicui/morphing-text'
 import { ArticleContent } from '@/app/components/ArticleContent'
 import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
+import type { ZoomFlowFixture } from '@/app/lib/zoomFlowPreview'
 import type { ZoomOperation } from '@/app/types/zoom'
 import zoomerVersion from '@/zoomer-version.json'
 
-export function ZoomWorkspace() {
+export function ZoomWorkspace({ preview }: { preview?: ZoomFlowFixture } = {}) {
   const appearance = useDialKit('Workspace', {
     layout: {
       contentWidth: [650, 360, 1000, 10],
@@ -30,7 +31,7 @@ export function ZoomWorkspace() {
   const [isLoading, setIsLoading] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
-  const [hasText, setHasText] = useState(false)
+  const [hasText, setHasText] = useState(Boolean(preview))
   const [hasSelection, setHasSelection] = useState(false)
   const [lastOperation, setLastOperation] = useState<{
     type: ZoomOperation
@@ -117,6 +118,7 @@ export function ZoomWorkspace() {
           </MorphingText>
         </h1>
         <ArticleContent
+          preview={preview}
           initialContent=""
           onLoadingStateChange={handleLoadingStateChange}
           onHasTextChange={setHasText}

@@ -4,11 +4,12 @@ import { useEffect, useRef } from 'react'
 import { Check, Undo2 } from 'lucide-react'
 
 type ZoomDiffReviewProps = {
+  disabled?: boolean
   onAccept: () => void
   onReject: () => void
 }
 
-export function ZoomDiffReview({ onAccept, onReject }: ZoomDiffReviewProps) {
+export function ZoomDiffReview({ onAccept, onReject, disabled = false }: ZoomDiffReviewProps) {
   const acceptRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -19,7 +20,7 @@ export function ZoomDiffReview({ onAccept, onReject }: ZoomDiffReviewProps) {
     <div
       role="group"
       aria-label="Zoom result"
-      className="review-dock-in fixed bottom-6 left-1/2 z-[9999] flex -translate-x-1/2 items-center gap-2 rounded-full border border-slate-200 p-2 backdrop-blur-[30px]"
+      className="flex items-center gap-2 rounded-full border border-slate-200 p-2 backdrop-blur-[30px]"
       style={{
         background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.55) 0%, rgba(196, 196, 196, 0.45) 100%)',
         boxShadow: '0 0 40px 0 rgba(179, 179, 179, 0.15), 0 8px 32px 0 rgba(31, 38, 135, 0.2)',
@@ -28,6 +29,7 @@ export function ZoomDiffReview({ onAccept, onReject }: ZoomDiffReviewProps) {
       <button
         type="button"
         onClick={onReject}
+        disabled={disabled}
         aria-keyshortcuts="Escape"
         className="flex h-12 min-w-[128px] items-center justify-center gap-2 rounded-full px-4 text-[15px] font-semibold text-slate-800 transition-shadow hover:shadow-[0_0_24px_rgba(255,255,255,0.85)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06b6d4]"
         style={{
@@ -42,6 +44,7 @@ export function ZoomDiffReview({ onAccept, onReject }: ZoomDiffReviewProps) {
         ref={acceptRef}
         type="button"
         onClick={onAccept}
+        disabled={disabled}
         aria-keyshortcuts="Enter"
         className="flex h-12 min-w-[128px] items-center justify-center gap-2 rounded-full px-4 text-[15px] font-semibold text-cyan-950 transition-shadow hover:shadow-[0_0_24px_rgba(6,182,212,0.45)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06b6d4]"
         style={{

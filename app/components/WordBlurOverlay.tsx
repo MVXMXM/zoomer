@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
+import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
 import { reviewLayout, type ReviewWord } from '@/app/lib/reviewLayout'
 import { pairWords, placeWords, tokenizeForLayout, wordHomes, type WordHome } from '@/app/lib/zoomLayout'
 
@@ -49,6 +50,7 @@ type WordBlurOverlayProps = {
   onReady: () => void
   onHeld: () => void
   onSettled: () => void
+  onHeightChange?: (height: number) => void
 }
 
 const TEXT_STYLE = {
@@ -171,7 +173,9 @@ export function WordBlurOverlay({
   onReady,
   onHeld,
   onSettled,
+  onHeightChange,
 }: WordBlurOverlayProps) {
+  const [scopeRows, setScopeRows] = useState<{ x: number; y: number; width: number }[]>([])
   const particlesRef = useRef<WordParticle[]>([])
   const settledRef = useRef(false)
   const phaseAtRef = useRef(0)
@@ -179,6 +183,8 @@ export function WordBlurOverlay({
 
   useLayoutEffect(() => {
     if (width <= 0) return
+    setScopeRows([])
+    onHeightChange?.(Math.max(wordHomes(oldText, width).height, wordHomes(newText, width).height))
     phaseAtRef.current = performance.now()
     settledRef.current = false
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -251,6 +257,21 @@ export function WordBlurOverlay({
     const beforePos = placeWords(layout.beforeTokens, width, layout.beforeLead)
     const afterPos = placeWords(layout.afterTokens, width, layout.afterLead)
     const diffPos = placeWords(layout.words, width, layout.diffLead)
+    const rows = new Map<number, { x: number; y: number; width: number }>()
+    layout.words.forEach((word, index) => {
+      if (!word.inScope) return
+      const pos = diffPos[index]
+      if (!pos) return
+      const key = Math.round(pos.y)
+      const row = rows.get(key)
+      if (row) {
+        const right = Math.max(row.x + row.width, pos.x + pos.width)
+        row.x = Math.min(row.x, pos.x)
+        row.width = right - row.x
+      } else rows.set(key, { ...pos })
+    })
+    setScopeRows(Array.from(rows.values()))
+    onHeightChange?.(Math.max(...diffPos.map(point => point.y + LINE_HEIGHT), LINE_HEIGHT))
     particlesRef.current = layout.words.map((word, index) => {
       const diff = diffPos[index] ?? { x: 0, y: 0 }
       const old = pointAt(beforePos, word.oldIndex, diff)
@@ -270,7 +291,7 @@ export function WordBlurOverlay({
     if (reduced) snap(particlesRef.current)
     setTick((count) => count + 1)
     onReady()
-  }, [focusRange, newText, oldText, onReady, phase, width])
+  }, [focusRange, newText, oldText, onReady, onHeightChange, phase, width])
 
   useEffect(() => {
     let raf = 0
@@ -322,6 +343,10 @@ export function WordBlurOverlay({
       role={phase === 'review' ? 'region' : undefined}
       aria-label={phase === 'review' ? 'Review zoom changes' : undefined}
     >
+      {!showSource && (phase === 'arrive' || phase === 'review') && scopeRows.map((row, index) => (
+        <div key={`scope-${index}`} className="zoom-replacement-scope" aria-hidden="true"
+          style={{ left: row.x - 2, top: row.y, width: row.width + 4, height: LINE_HEIGHT }} />
+      ))}
       {showSource ? (
         <StreamingSource text={oldText} range={focusRange} />
       ) : (

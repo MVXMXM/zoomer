@@ -7,6 +7,7 @@ export type ReviewWord = {
   text: string
   trailing: string
   role: 'same' | 'add' | 'del'
+  inScope: boolean
   oldIndex: number | null
   newIndex: number | null
 }
@@ -50,6 +51,7 @@ export function reviewLayout(before: string, after: string, range: RewriteRange 
       text: token.text,
       trailing: token.trailing,
       role: 'same',
+      inScope: false,
       oldIndex: index,
       newIndex: index < afterPrefix.length ? index : null,
     })
@@ -63,6 +65,7 @@ export function reviewLayout(before: string, after: string, range: RewriteRange 
       text: slot.text,
       trailing: slot.trailing,
       role: slot.role,
+      inScope: true,
       oldIndex,
       newIndex,
     })
@@ -77,6 +80,7 @@ export function reviewLayout(before: string, after: string, range: RewriteRange 
       text: token.text,
       trailing: token.trailing,
       role: 'same',
+      inScope: false,
       oldIndex: oldSuffixAt + index,
       newIndex: newIndex < afterTokens.length ? newIndex : null,
     })

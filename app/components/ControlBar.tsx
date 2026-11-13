@@ -1,12 +1,18 @@
 'use client'
 
-import { useEffect, useId, useLayoutEffect, useState } from 'react'
-import { Microscope, Telescope } from 'lucide-react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { ArrowUp, LoaderCircle, Microscope, Telescope } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import type { GlassSettings } from '@/app/lib/glassSettings'
+import { ZoomDiffReview } from '@/app/components/ZoomDiffReview'
 import { createLensMap } from '@/app/lib/glassRefraction'
 
 type ControlBarProps = {
+  mode?: 'choose' | 'working' | 'review' | 'settling'
+  pinned?: boolean
+  onBackToEdit?: () => void
+  onAccept?: () => void
+  onReject?: () => void
   settings: GlassSettings
   visible: boolean
   anchor: {
@@ -34,7 +40,11 @@ type SourceGeometry = {
   color: string
 }
 
-export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand }: ControlBarProps) {
+export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, disabled, onContract, onExpand,
+  mode = 'choose', pinned = false, onBackToEdit, onAccept, onReject,
+}: ControlBarProps) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  const review = mode === 'review' || mode === 'settling'
   const reduceMotion = useReducedMotion()
   const menuMotion = settings.motion
   const hiddenOffset = (anchor?.placement === 'above' ? 1 : -1) * menuMotion.distance
@@ -156,14 +166,16 @@ export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, d
                   : { duration: menuMotion.exitDuration, ease: 'easeIn' },
               }
           }
+          ref={menuRef}
           role="group"
-          aria-label="Text selection actions"
-          className="control-container liquid-glass relative flex items-center p-1.5"
+          aria-label={mode === 'review' ? 'Review zoom result' : 'Text selection actions'}
+          aria-busy={mode === 'working'}
+          className={review ? 'relative' : 'control-container liquid-glass relative flex items-center p-1.5'}
           style={{
             position: 'relative',
             transformOrigin: anchor?.placement === 'above' ? '50% 100%' : '50% 0%',
             width: controlWidth,
-            height: controlHeight,
+            height: review ? undefined : controlHeight,
             borderRadius: controlRadius,
             '--glass-glow': glassSettings.glow,
             '--glass-glow-wide': glassSettings.glow * 0.25,
@@ -178,11 +190,11 @@ export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, d
             '--glass-tint': glassSettings.tint,
           } as React.CSSProperties}
           onMouseDown={(e) => {
-            // Keep the textarea highlight when Distill / Extrapolate is clicked.
-            e.preventDefault()
+            // Choosing an action preserves the original text selection.
+            if (mode === 'choose') e.preventDefault()
           }}
         >
-          <div className="liquid-glass-surface" aria-hidden="true">
+          {!review && <><div className="liquid-glass-surface" aria-hidden="true">
             {sourceGeometry && (
               <div
                 className="glass-refraction-viewport"
@@ -211,27 +223,32 @@ export function ControlBar({ settings, visible, anchor, sourceRef, sourceText, d
               </div>
             )}
           </div>
-          <div className="liquid-glass-rim" aria-hidden="true" />
+          <div className="liquid-glass-rim" aria-hidden="true" /></>}
 
-          <button
-            className="liquid-glass-button glass-menu-action"
-            onClick={onContract}
-            disabled={disabled}
-            type="button"
-          >
-            <Microscope className="glass-action-icon" strokeWidth={2} aria-hidden="true" />
-            <span>Distill</span>
-          </button>
-
-          <button
-            className="liquid-glass-button glass-menu-action"
-            onClick={onExpand}
-            disabled={disabled}
-            type="button"
-          >
-            <Telescope className="glass-action-icon" strokeWidth={2} aria-hidden="true" />
-            <span>Extrapolate</span>
-          </button>
+          {mode === 'choose' ? (
+            <>
+              <button className="liquid-glass-button glass-menu-action" onClick={onContract} disabled={disabled} type="button">
+                <Microscope className="glass-action-icon" strokeWidth={2} aria-hidden="true" />
+                <span>Distill</span>
+              </button>
+              <button className="liquid-glass-button glass-menu-action" onClick={onExpand} disabled={disabled} type="button">
+                <Telescope className="glass-action-icon" strokeWidth={2} aria-hidden="true" />
+                <span>Extrapolate</span>
+              </button>
+            </>
+          ) : mode === 'working' ? (
+            <div className="glass-menu-status" role="status">
+              <LoaderCircle className="glass-action-icon glass-menu-spinner" aria-hidden="true" />
+              <span>Rewriting…</span>
+            </div>
+          ) : (
+            <ZoomDiffReview onAccept={() => onAccept?.()} onReject={() => onReject?.()} disabled={mode === 'settling'} />
+          )}
+          {pinned && (
+            <button className="glass-back-to-edit" type="button" onClick={() => { onBackToEdit?.(); menuRef.current?.querySelector<HTMLButtonElement>('[aria-keyshortcuts=Enter]')?.focus({ preventScroll: true }) }}>
+              <ArrowUp size={14} aria-hidden="true" /> Back to edit
+            </button>
+          )}
         </motion.div>
       </div>
     </>

@@ -249,3 +249,13 @@ body {
     text-wrap: balance;
   }
 }
+
+.glass-menu-status { position: relative; z-index: 10; display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; color: #334155; font-size: var(--glass-label-size, 16px); font-weight: 550; }
+.glass-menu-spinner { animation: menu-spin 1s linear infinite; }
+.glass-menu-accept { color: #075968; }
+.glass-back-to-edit { position: absolute; z-index: 11; display: flex; align-items: center; justify-content: center; gap: 6px; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); padding: 7px 11px; border: 1px solid rgba(148,163,184,.3); border-radius: 999px; background: rgba(248,250,252,.94); box-shadow: 0 2px 8px rgba(15,23,42,.08); color: #475569; font-size: 12px; font-weight: 550; white-space: nowrap; cursor: pointer; }
+.glass-back-to-edit:focus-visible { outline: 2px solid #06b6d4; outline-offset: 2px; }
+.zoom-replacement-scope { position: absolute; background: rgba(6,182,212,.065); box-shadow: inset 2px 0 rgba(6,182,212,.2); border-radius: 4px; animation: menu-content-in 200ms ease-out; }
+@keyframes menu-content-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes menu-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .glass-menu-spinner, .zoom-replacement-scope { animation: none; } }

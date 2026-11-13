@@ -1,29 +1,23 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useDialKit } from 'dialkit'
 import { GLASS_DIALS } from '@/app/lib/glassSettings'
 import { ControlBar } from '@/app/components/ControlBar'
 import { WordBlurOverlay, type BlurPhase } from '@/app/components/WordBlurOverlay'
-import { ZoomDiffReview } from '@/app/components/ZoomDiffReview'
+import { placeEditMenu, type EditOrigin, type MenuAnchor } from '@/app/lib/menuPlacement'
+import { wordHomes } from '@/app/lib/zoomLayout'
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
-import type { RewriteRange } from '@/app/lib/rewriteClient'
+import type { ZoomFlowFixture } from '@/app/lib/zoomFlowPreview'
+import { wordCount, type RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomArticleProps } from '@/app/types/zoom'
 
 const REST_HEIGHT = 'calc(100dvh - 96px - 32px)'
-const VIEWPORT_MARGIN = 12
-
-type ControlAnchor = {
-  x: number
-  y: number
-  placement: 'above' | 'below'
-}
-
-function getSelectionRects(textarea: HTMLTextAreaElement) {
-  const start = textarea.selectionStart
-  const end = textarea.selectionEnd
+function getSelectionRects(textarea: HTMLTextAreaElement, range?: RewriteRange, text = textarea.value) {
+  const start = range?.start ?? textarea.selectionStart
+  const end = range?.end ?? textarea.selectionEnd
   if (start === end) return []
 
   const style = window.getComputedStyle(textarea)
@@ -69,8 +63,8 @@ function getSelectionRects(textarea: HTMLTextAreaElement) {
     top: `${rect.top - textarea.scrollTop}px`,
   })
 
-  mirror.append(document.createTextNode(textarea.value.slice(0, start)))
-  selection.textContent = textarea.value.slice(start, end)
+  mirror.append(document.createTextNode(text.slice(0, start)))
+  selection.textContent = text.slice(start, end)
   mirror.append(selection)
   // Keep the last selected line measurable when the selection ends in a newline.
   mirror.append(document.createTextNode('\u200b'))
@@ -80,37 +74,21 @@ function getSelectionRects(textarea: HTMLTextAreaElement) {
   return rects
 }
 
-function getControlAnchor(textarea: HTMLTextAreaElement, width: number, height: number, gap: number): ControlAnchor | null {
-  const rects = getSelectionRects(textarea)
-  if (!rects.length) return null
-
-  const first = rects[0]
-  const last = rects[rects.length - 1]
-  const left = Math.min(...rects.map((rect) => rect.left))
-  const right = Math.max(...rects.map((rect) => rect.right))
-  const x = Math.min(
-    window.innerWidth - VIEWPORT_MARGIN - width / 2,
-    Math.max(VIEWPORT_MARGIN + width / 2, (left + right) / 2),
-  )
-  const belowY = last.bottom + gap
-  const aboveY = first.top - gap - height
-  const roomBelow = belowY + height <= window.innerHeight - VIEWPORT_MARGIN
-  const roomAbove = aboveY >= VIEWPORT_MARGIN
-
-  if (roomBelow || !roomAbove) {
-    return {
-      x,
-      y: Math.min(window.innerHeight - VIEWPORT_MARGIN - height, Math.max(VIEWPORT_MARGIN, belowY)),
-      placement: 'below',
-    }
-  }
-
-  return { x, y: aboveY, placement: 'above' }
+function readEditOrigin(textarea: HTMLTextAreaElement, range?: RewriteRange, text?: string): EditOrigin | null {
+  const first = getSelectionRects(textarea, range, text)[0]
+  if (!first) return null
+  return { x: first.left + window.scrollX, y: first.top + window.scrollY,
+    lineHeight: parseFloat(getComputedStyle(textarea).lineHeight) || 32.5 }
 }
 
 type ZoomPhase = 'idle' | BlurPhase
 
-export function ArticleContent(props: ZoomArticleProps) {
+export function ArticleContent(props: ZoomArticleProps & { preview?: ZoomFlowFixture }) {
+  const fixture = process.env.NODE_ENV === 'development' ? props.preview : undefined
+  const fixtureReview = fixture?.stage === 'review' || fixture?.stage === 'pinned'
+  const fixtureOpen = fixtureReview || fixture?.stage === 'working'
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (previewTimer.current) clearTimeout(previewTimer.current) }, [])
   const glassSettings = useDialKit('Selection glass', GLASS_DIALS)
   const { width: controlWidth, height: controlHeight, selectionGap } = glassSettings.shape
   const { onTransitioningChange } = props
@@ -128,30 +106,59 @@ export function ArticleContent(props: ZoomArticleProps) {
     abortRewrite,
     undo,
     redo,
-  } = useArticleEditor(props)
+  } = useArticleEditor({ ...props, initialContent: fixture
+    ? fixtureReview || fixture.stage === 'accepted' ? fixture.after : fixture.before
+    : props.initialContent })
   const boxRef = useRef<HTMLDivElement>(null)
   const width = useBoxWidth(boxRef)
-  const [oldText, setOldText] = useState('')
-  const [destText, setDestText] = useState('')
-  const [overlayOpen, setOverlayOpen] = useState(false)
-  const [overlayReady, setOverlayReady] = useState(false)
-  const [streaming, setStreaming] = useState(false)
-  const [focusRange, setFocusRange] = useState<RewriteRange | null>(null)
+  const [oldText, setOldText] = useState(fixtureOpen ? fixture!.before : '')
+  const [destText, setDestText] = useState(fixtureReview ? fixture!.after : '')
+  const [overlayOpen, setOverlayOpen] = useState(Boolean(fixtureOpen))
+  const [overlayReady, setOverlayReady] = useState(Boolean(fixtureReview))
+  const [streaming, setStreaming] = useState(fixture?.stage === 'working')
+  const [focusRange, setFocusRange] = useState<RewriteRange | null>(fixtureOpen ? fixture!.range : null)
   const [morphKey, setMorphKey] = useState(0)
   const [historyMorph, setHistoryMorph] = useState(false)
-  const [zoomPhase, setZoomPhase] = useState<ZoomPhase>('idle')
+  const [zoomPhase, setZoomPhase] = useState<ZoomPhase>(fixtureReview ? 'review' : fixture?.stage === 'working' ? 'stream' : 'idle')
   const phaseRef = useRef<ZoomPhase>('idle')
   phaseRef.current = zoomPhase
   const showDock = zoomPhase === 'arrive' || zoomPhase === 'review'
   const overlayPhase: BlurPhase = historyMorph ? 'history' : zoomPhase === 'idle' ? 'stream' : zoomPhase
-  const [controlAnchor, setControlAnchor] = useState<ControlAnchor | null>(null)
+  const [controlAnchor, setControlAnchor] = useState<MenuAnchor | null>(null)
+
+  const editOriginRef = useRef<EditOrigin | null>(null)
+  const [overlayHeight, setOverlayHeight] = useState(0)
+  const [textHeight, setTextHeight] = useState(200)
+  const operationOpen = overlayOpen && !historyMorph
 
   const updateControlAnchor = useCallback(() => {
     const textarea = textareaRef.current
-    if (!textarea || textarea.selectionStart === textarea.selectionEnd) return
-    const nextAnchor = getControlAnchor(textarea, controlWidth, controlHeight, selectionGap)
-    if (nextAnchor) setControlAnchor(nextAnchor)
-  }, [textareaRef, controlWidth, controlHeight, selectionGap])
+    if (!textarea) return
+    if (!operationOpen) {
+      const origin = readEditOrigin(textarea)
+      if (origin) editOriginRef.current = origin
+    }
+    const origin = editOriginRef.current
+    if (!origin) return
+    setControlAnchor(placeEditMenu(origin,
+      { width: window.innerWidth, height: window.innerHeight, scrollX: window.scrollX, scrollY: window.scrollY },
+      { width: controlWidth, height: controlHeight, gap: selectionGap }))
+  }, [textareaRef, operationOpen, controlWidth, controlHeight, selectionGap])
+
+  const backToEdit = useCallback(() => {
+    const origin = editOriginRef.current
+    if (!origin) return
+    window.scrollTo({ top: Math.max(0, origin.y - controlHeight - selectionGap - 24),
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+  }, [controlHeight, selectionGap])
+
+  useLayoutEffect(() => {
+    if (width > 0) setTextHeight(Math.max(200, wordHomes(operationOpen ? oldText : content, width).height + 80))
+    if (operationOpen && focusRange && textareaRef.current) {
+      editOriginRef.current = readEditOrigin(textareaRef.current, focusRange, oldText)
+      updateControlAnchor()
+    }
+  }, [content, focusRange, oldText, operationOpen, width, textareaRef, updateControlAnchor])
 
   const handleSelectionChange = useCallback(() => {
     rememberSelection()
@@ -159,7 +166,7 @@ export function ArticleContent(props: ZoomArticleProps) {
   }, [rememberSelection, updateControlAnchor])
 
   useEffect(() => {
-    if (!hasSelection || overlayOpen) return
+    if (!hasSelection && !operationOpen) return
     updateControlAnchor()
     let frame = 0
     const update = () => {
@@ -173,23 +180,37 @@ export function ArticleContent(props: ZoomArticleProps) {
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
     }
-  }, [hasSelection, overlayOpen, updateControlAnchor])
+  }, [hasSelection, operationOpen, shouldExpand, updateControlAnchor])
+
+  useEffect(() => {
+    if (!fixture || !textareaRef.current || width <= 0) return
+    props.onLoadingStateChange?.(fixture.stage === 'working', fixture.stage === 'rejected' ? null : 'expand',
+      fixtureReview || fixture.stage === 'accepted'
+        ? { beforeCount: wordCount(fixture.before), afterCount: wordCount(fixture.after) } : undefined)
+    if (fixture.stage === 'accepted' || fixture.stage === 'rejected') return
+    const textarea = textareaRef.current
+    editOriginRef.current = readEditOrigin(textarea, fixture.range, fixture.before)
+    if (fixture.stage === 'selection') {
+      textarea.focus({ preventScroll: true })
+      textarea.setSelectionRange(fixture.range.start, fixture.range.end)
+      rememberSelection()
+    }
+    updateControlAnchor()
+    if (fixture.stage !== 'pinned') return
+    let second = 0
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => window.scrollTo(0, (editOriginRef.current?.y ?? 0) + 180))
+    })
+    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second) }
+    // Fixtures are pinned only on mount/resize, not when the reviewer scrolls back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixture, width])
 
   useEffect(() => {
     const showingResult =
       historyMorph || zoomPhase === 'review' || zoomPhase === 'accept' || zoomPhase === 'reject'
     onTransitioningChange?.(showingResult ? false : overlayOpen || isLoading)
   }, [overlayOpen, isLoading, historyMorph, zoomPhase, onTransitioningChange])
-
-  useEffect(() => {
-    if (!overlayOpen) return
-    const y = window.scrollY
-    const lock = () => {
-      if (window.scrollY !== y) window.scrollTo(0, y)
-    }
-    window.addEventListener('scroll', lock, { passive: true })
-    return () => window.removeEventListener('scroll', lock)
-  }, [overlayOpen])
 
   const onReady = useCallback(() => {
     setOverlayReady(true)
@@ -205,7 +226,13 @@ export function ArticleContent(props: ZoomArticleProps) {
     setOldText('')
     setDestText('')
     setFocusRange(null)
-    requestAnimationFrame(() => textareaRef.current?.focus())
+    setOverlayHeight(0)
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      if (!textarea) return
+      textarea.setSelectionRange(textarea.selectionEnd, textarea.selectionEnd)
+      textarea.focus({ preventScroll: true })
+    })
   }, [textareaRef])
 
   const holdReview = useCallback(() => {
@@ -225,10 +252,11 @@ export function ArticleContent(props: ZoomArticleProps) {
   const rejectReview = useCallback(() => {
     const phase = phaseRef.current
     if (phase !== 'arrive' && phase !== 'review') return
-    if (!undo()) return
+    if (fixture) setContent(fixture.before)
+    else if (!undo()) return
     phaseRef.current = 'reject'
     setZoomPhase('reject')
-  }, [undo])
+  }, [undo, fixture, setContent])
 
   const playMorph = useCallback((from: string, to: string) => {
     setOldText(from)
@@ -245,8 +273,9 @@ export function ArticleContent(props: ZoomArticleProps) {
   }, [onTransitioningChange])
 
   const start = useCallback((operation: 'expand' | 'contract') => {
-    void handleRewrite(operation, {
-      onStart: (source, range) => {
+    const hooks = {
+      onStart: (source: string, range: RewriteRange | null) => {
+        if (textareaRef.current && range) editOriginRef.current = readEditOrigin(textareaRef.current, range, source)
         phaseRef.current = 'stream'
         setZoomPhase('stream')
         setHistoryMorph(false)
@@ -257,7 +286,7 @@ export function ArticleContent(props: ZoomArticleProps) {
         setOverlayOpen(true)
         setStreaming(true)
       },
-      onEnd: (full) => {
+      onEnd: (full: string) => {
         setDestText(full)
         setStreaming(false)
         setOverlayReady(true)
@@ -271,8 +300,17 @@ export function ArticleContent(props: ZoomArticleProps) {
         }
       },
       onError: onSettled,
-    })
-  }, [handleRewrite, onSettled, onTransitioningChange])
+    }
+    if (fixture) {
+      props.onLoadingStateChange?.(true, operation)
+      hooks.onStart(fixture.before, fixture.range)
+      previewTimer.current = setTimeout(() => {
+        setContent(fixture.after)
+        props.onLoadingStateChange?.(false, operation, { beforeCount: wordCount(fixture.before), afterCount: wordCount(fixture.after) })
+        hooks.onEnd(fixture.after)
+      }, 1100)
+    } else void handleRewrite(operation, hooks)
+  }, [handleRewrite, onSettled, onTransitioningChange, fixture, setContent, textareaRef, props.onLoadingStateChange])
 
   // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
   useEffect(() => {
@@ -286,6 +324,7 @@ export function ArticleContent(props: ZoomArticleProps) {
       }
       if (showDock) {
         const key = event.key.toLowerCase()
+        if (event.key === 'Enter' && event.target instanceof HTMLElement && event.target.closest('button')) return
         if (event.key === 'Enter' && !withCmd && !event.altKey) {
           event.preventDefault()
           acceptReview()
@@ -349,8 +388,8 @@ export function ArticleContent(props: ZoomArticleProps) {
       ref={boxRef}
       className="relative [overflow-anchor:none]"
       style={{
-        height: shouldExpand ? REST_HEIGHT : '200px',
-        transition: overlayOpen || isLoading ? 'none' : 'height 1000ms cubic-bezier(0.4, 0, 0.2, 1)',
+        minHeight: shouldExpand ? REST_HEIGHT : '200px',
+        height: Math.max(textHeight, overlayOpen ? overlayHeight + 80 : 0),
       }}
     >
       {overlayOpen && width > 0 && (
@@ -365,10 +404,9 @@ export function ArticleContent(props: ZoomArticleProps) {
           onReady={onReady}
           onHeld={holdReview}
           onSettled={onSettled}
+          onHeightChange={setOverlayHeight}
         />
       )}
-
-      {showDock && <ZoomDiffReview onAccept={acceptReview} onReject={rejectReview} />}
 
       <textarea
         ref={textareaRef}
@@ -377,12 +415,12 @@ export function ArticleContent(props: ZoomArticleProps) {
           setContent(e.target.value)
           handleSelectionChange()
         }}
-        className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none px-0 pt-0 pb-[132px] relative ${
+        className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none px-0 pt-0 pb-0 relative ${
           isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
         }`}
         style={{
           caretColor: 'var(--workspace-accent, #06b6d4)',
-          height: shouldExpand || overlayOpen ? '100%' : 'auto',
+          height: textHeight,
           overflow: 'hidden',
           letterSpacing: '-0.01em',
           whiteSpace: 'pre-wrap',
@@ -402,7 +440,12 @@ export function ArticleContent(props: ZoomArticleProps) {
 
       <ControlBar
         settings={glassSettings}
-        visible={hasSelection && !overlayOpen && !!controlAnchor}
+        visible={(hasSelection || operationOpen) && !historyMorph && !!controlAnchor}
+        mode={operationOpen ? showDock ? 'review' : zoomPhase === 'stream' ? 'working' : 'settling' : 'choose'}
+        pinned={controlAnchor?.pinned}
+        onBackToEdit={backToEdit}
+        onAccept={acceptReview}
+        onReject={rejectReview}
         anchor={controlAnchor}
         sourceRef={textareaRef}
         sourceText={content}

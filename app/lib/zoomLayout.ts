@@ -155,9 +155,9 @@ export function placeWords(
   pieces: { text: string; trailing: string }[],
   width: number,
   lead = '',
-): { x: number; y: number }[] {
+): { x: number; y: number; width: number }[] {
   if (!pieces.length || width <= 0 || typeof document === 'undefined') {
-    return pieces.map(() => ({ x: 0, y: 0 }))
+    return pieces.map(() => ({ x: 0, y: 0, width: 0 }))
   }
   const root = getMeasureRoot()
   root.style.width = `${width}px`
@@ -181,7 +181,7 @@ export function placeWords(
   const origin = root.getBoundingClientRect()
   const placed = spans.map((span) => {
     const rect = span.getBoundingClientRect()
-    return { x: rect.left - origin.left, y: rect.top - origin.top }
+    return { x: rect.left - origin.left, y: rect.top - origin.top, width: rect.width }
   })
   const originY = placed.reduce((min, word) => Math.min(min, word.y), placed[0]?.y ?? 0)
   if (originY !== 0) {
