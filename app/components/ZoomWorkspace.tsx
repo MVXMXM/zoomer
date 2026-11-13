@@ -5,6 +5,7 @@ import { MorphingText } from '@/registry/magicui/morphing-text'
 import { ArticleContent } from '@/app/components/ArticleContent'
 import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
 import type { ZoomOperation } from '@/app/types/zoom'
+import zoomerVersion from '@/zoomer-version.json'
 
 export function ZoomWorkspace() {
   const [isLoading, setIsLoading] = useState(false)
@@ -67,7 +68,7 @@ export function ZoomWorkspace() {
     }
     return (
       <>
-        Welcome to Zoomer <span className="font-normal">(v0.1.0)</span>
+        Welcome to Zoomer <span className="font-normal">(v{zoomerVersion.version})</span>
       </>
     )
   }
