@@ -377,7 +377,7 @@ export function ArticleContent(props: ZoomArticleProps) {
           setContent(e.target.value)
           handleSelectionChange()
         }}
-        className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
+        className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none px-0 pt-0 pb-[132px] relative ${
           isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
         }`}
         style={{
