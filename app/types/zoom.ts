@@ -11,5 +11,6 @@ export type ZoomArticleProps = {
   onHasTextChange?: (hasText: boolean) => void
   onContentManuallyEdited?: () => void
   onEngagementChange?: (isEngaged: boolean) => void
+  onSelectionChange?: (hasSelection: boolean) => void
   onTransitioningChange?: (isTransitioning: boolean) => void
 }

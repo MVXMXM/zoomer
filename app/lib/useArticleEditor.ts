@@ -34,6 +34,7 @@ export function useArticleEditor({
   onHasTextChange,
   onContentManuallyEdited,
   onEngagementChange,
+  onSelectionChange,
 }: ZoomArticleProps) {
   const [content, setContent] = useState(initialContent)
   const [isLoading, setIsLoading] = useState(false)
@@ -41,6 +42,7 @@ export function useArticleEditor({
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
   const [hasText, setHasText] = useState(initialContent.trim().length > 0)
   const [shouldExpand, setShouldExpand] = useState(initialContent.trim().length > 0)
+  const [hasSelection, setHasSelection] = useState(false)
   const [hasPerformedFirstZoom, setHasPerformedFirstZoom] = useState(false)
   const [lastGeneratedContent, setLastGeneratedContent] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -84,6 +86,10 @@ export function useArticleEditor({
   }, [shouldExpand, onEngagementChange])
 
   useEffect(() => {
+    onSelectionChange?.(hasSelection)
+  }, [hasSelection, onSelectionChange])
+
+  useEffect(() => {
     if (!isLoading && lastGeneratedContent && content !== lastGeneratedContent && content.trim().length > 0) {
       onContentManuallyEdited?.()
       setLastGeneratedContent('')
@@ -110,7 +116,9 @@ export function useArticleEditor({
   const rememberSelection = useCallback(() => {
     const el = textareaRef.current
     if (!el || document.activeElement !== el) return
-    selectionRef.current = { start: el.selectionStart, end: el.selectionEnd }
+    const range = selectionRange(contentRef.current, el.selectionStart, el.selectionEnd)
+    selectionRef.current = range ?? { start: el.selectionStart, end: el.selectionStart }
+    setHasSelection(Boolean(range))
   }, [])
 
   const snapshot = useCallback(
@@ -124,6 +132,8 @@ export function useArticleEditor({
   const applyEntry = useCallback(
     (entry: HistoryEntry) => {
       setContent(entry.content)
+      setHasSelection(false)
+      selectionRef.current = { start: 0, end: 0 }
       setLastGeneratedContent(entry.headline ? entry.content : '')
       headlineRef.current = entry.headline
       if (entry.headline) {
@@ -183,7 +193,7 @@ export function useArticleEditor({
       if (abortRef.current) return
 
       const el = textareaRef.current
-      const live = el
+      const live = el && document.activeElement === el
         ? selectionRange(content, el.selectionStart, el.selectionEnd)
         : null
       const remembered = selectionRange(
@@ -192,7 +202,13 @@ export function useArticleEditor({
         selectionRef.current.end,
       )
       const range = live ?? remembered
-      const excerpt = range ? content.slice(range.start, range.end) : null
+      if (!range) {
+        setHasSelection(false)
+        setError(`Select some text to ${operation}.`)
+        setTimeout(() => setError(null), 3000)
+        return
+      }
+      const excerpt = content.slice(range.start, range.end)
 
       const beforeCount = wordCount(content)
       const oldText = content
@@ -203,6 +219,8 @@ export function useArticleEditor({
       setError(null)
       setActiveButton(operation)
       setHasPerformedFirstZoom(true)
+      setHasSelection(false)
+      selectionRef.current = { start: 0, end: 0 }
       textareaRef.current?.blur()
       hooks?.onStart?.(oldText, range)
 
@@ -212,13 +230,11 @@ export function useArticleEditor({
           operation,
           (chunk) => {
             if (controller.signal.aborted) return
-            const next = excerpt ? stitchRewrite(oldText, range, chunk) : chunk
+            const next = stitchRewrite(oldText, range, chunk)
             setContent(next)
             hooks?.onUpdate?.(next)
           },
-          excerpt
-            ? { excerpt: true, context: oldText, signal: controller.signal }
-            : { signal: controller.signal },
+          { excerpt: true, context: oldText, signal: controller.signal },
         )
         if (abortRef.current === controller) abortRef.current = null
         if (controller.signal.aborted) {
@@ -227,7 +243,7 @@ export function useArticleEditor({
           return
         }
         if (!result.trim()) throw new Error('Empty rewrite')
-        const next = excerpt ? stitchRewrite(oldText, range, result) : result
+        const next = stitchRewrite(oldText, range, result)
         pastRef.current = [...pastRef.current, { content: oldText, headline: priorHeadline }].slice(
           -HISTORY_CAP,
         )
@@ -261,6 +277,7 @@ export function useArticleEditor({
     error,
     activeButton,
     shouldExpand,
+    hasSelection,
     hasPerformedFirstZoom,
     textareaRef,
     rememberSelection,

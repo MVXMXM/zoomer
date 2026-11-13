@@ -14,7 +14,6 @@ export function selectionRange(source: string, start: number, end: number): Rewr
   const to = Math.max(start, end)
   if (to <= from) return null
   if (!source.slice(from, to).trim()) return null
-  if (from === 0 && to === source.length) return null
   return { start: from, end: to }
 }
 
