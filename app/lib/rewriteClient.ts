@@ -1,4 +1,4 @@
-import type { ZoomOperation } from '@/app/types/zoom'
+import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter((word) => word.length > 0).length
@@ -37,6 +37,7 @@ export function stitchRewrite(
 export async function streamRewrite(
   text: string,
   operation: ZoomOperation,
+  degree: ZoomDegree,
   onUpdate: (full: string) => void,
   options?: { excerpt?: boolean; context?: string; signal?: AbortSignal },
 ): Promise<string> {
@@ -46,6 +47,7 @@ export async function streamRewrite(
     body: JSON.stringify({
       prompt: `"${text}"`,
       operation,
+      degree,
       excerpt: Boolean(options?.excerpt),
       context: options?.context,
     }),
