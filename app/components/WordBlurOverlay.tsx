@@ -2,7 +2,12 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
-import { pairWords, wordHomes, type WordHome } from '@/app/lib/zoomLayout'
+import { reviewLayout, type ReviewWord } from '@/app/lib/reviewLayout'
+import { pairWords, placeWords, tokenizeForLayout, wordHomes, type WordHome } from '@/app/lib/zoomLayout'
+
+export type BlurPhase = 'stream' | 'arrive' | 'review' | 'accept' | 'reject' | 'history'
+
+type Role = 'same' | 'add' | 'del'
 
 type WordParticle = {
   id: string
@@ -15,13 +20,24 @@ type WordParticle = {
   targetOpacity: number
   blur: number
   targetBlur: number
-  kind: 'stay' | 'exit' | 'enter'
+  mark: number
+  targetMark: number
+  role: Role
 }
+
+type Point = { x: number; y: number }
 
 const EXIT_BLUR = 8
 const FADE_RATE = 0.06
 const MOVE_RATE = 0.14
-const SETTLE_HOLD_MS = 900
+const HOLD_MS: Record<BlurPhase, number> = {
+  stream: 0,
+  arrive: 220,
+  review: 0,
+  accept: 160,
+  reject: 160,
+  history: 900,
+}
 
 type WordBlurOverlayProps = {
   oldText: string
@@ -29,7 +45,9 @@ type WordBlurOverlayProps = {
   width: number
   streaming: boolean
   focusRange?: RewriteRange | null
+  phase: BlurPhase
   onReady: () => void
+  onHeld: () => void
   onSettled: () => void
 }
 
@@ -59,24 +77,88 @@ function StreamingSource({ text, range }: { text: string; range?: RewriteRange |
   )
 }
 
-function stayParticle(home: WordHome, prev?: WordParticle): WordParticle {
+function mix(from: number, to: number, amount: number) {
+  return Math.round(from + (to - from) * amount)
+}
+
+function markedColor(role: Role, mark: number) {
+  const amount = Math.min(1, Math.max(0, mark))
+  if (role === 'add' && amount > 0.01) {
+    return {
+      color: `rgb(${mix(15, 2, amount)}, ${mix(23, 44, amount)}, ${mix(42, 34, amount)})`,
+      backgroundColor: `rgba(209, 250, 229, ${amount})`,
+      textDecorationLine: undefined,
+      textDecorationColor: undefined,
+    }
+  }
+  if (role === 'del' && amount > 0.01) {
+    return {
+      color: `rgb(${mix(15, 69, amount)}, ${mix(23, 10, amount)}, ${mix(42, 10, amount)})`,
+      backgroundColor: `rgba(254, 226, 226, ${amount})`,
+      textDecorationLine: amount > 0.08 ? ('line-through' as const) : undefined,
+      textDecorationColor: `rgba(153, 27, 27, ${amount})`,
+    }
+  }
   return {
-    id: `s-${home.index}`,
-    word: home.word,
-    x: prev?.x ?? home.x,
-    y: prev?.y ?? home.y,
-    tx: home.x,
-    ty: home.y,
-    opacity: prev?.opacity ?? 1,
-    targetOpacity: 1,
-    blur: 0,
-    targetBlur: 0,
-    kind: 'stay',
+    color: '#0f172a',
+    backgroundColor: 'transparent',
+    textDecorationLine: undefined,
+    textDecorationColor: undefined,
   }
 }
 
-function layoutStay(text: string, width: number): WordParticle[] {
-  return wordHomes(text, width).words.map((home) => stayParticle(home))
+function particle(
+  id: string,
+  word: string,
+  role: Role,
+  prev: WordParticle | undefined,
+  start: Point,
+  goal: { tx: number; ty: number; opacity: number; blur: number; mark: number },
+  fresh?: { opacity: number; blur: number; mark: number },
+): WordParticle {
+  return {
+    id,
+    word,
+    role,
+    x: prev?.x ?? start.x,
+    y: prev?.y ?? start.y,
+    tx: goal.tx,
+    ty: goal.ty,
+    opacity: prev?.opacity ?? fresh?.opacity ?? 1,
+    targetOpacity: goal.opacity,
+    blur: prev?.blur ?? fresh?.blur ?? 0,
+    targetBlur: goal.blur,
+    mark: prev?.mark ?? fresh?.mark ?? 0,
+    targetMark: goal.mark,
+  }
+}
+
+function pointAt(points: Point[], index: number | null, fallback: Point): Point {
+  if (index === null) return fallback
+  return points[index] ?? fallback
+}
+
+function reviewGoal(phase: BlurPhase, word: ReviewWord, diff: Point, old: Point, next: Point) {
+  if (phase === 'accept') {
+    if (word.role === 'del') return { tx: diff.x, ty: diff.y, opacity: 0, blur: EXIT_BLUR, mark: 0 }
+    return { tx: next.x, ty: next.y, opacity: 1, blur: 0, mark: 0 }
+  }
+  if (phase === 'reject') {
+    if (word.role === 'add') return { tx: diff.x, ty: diff.y, opacity: 0, blur: EXIT_BLUR, mark: 0 }
+    return { tx: old.x, ty: old.y, opacity: 1, blur: 0, mark: 0 }
+  }
+  if (word.role === 'same') return { tx: diff.x, ty: diff.y, opacity: 1, blur: 0, mark: 0 }
+  return { tx: diff.x, ty: diff.y, opacity: 1, blur: 0, mark: 1 }
+}
+
+function snap(particles: WordParticle[]) {
+  for (const item of particles) {
+    item.x = item.tx
+    item.y = item.ty
+    item.opacity = item.targetOpacity
+    item.blur = item.targetBlur
+    item.mark = item.targetMark
+  }
 }
 
 export function WordBlurOverlay({
@@ -85,154 +167,190 @@ export function WordBlurOverlay({
   width,
   streaming,
   focusRange,
+  phase,
   onReady,
+  onHeld,
   onSettled,
 }: WordBlurOverlayProps) {
-  const particlesRef = useRef<WordParticle[]>(width > 0 ? layoutStay(oldText, width) : [])
+  const particlesRef = useRef<WordParticle[]>([])
   const settledRef = useRef(false)
-  const destReadyRef = useRef(false)
-  const streamEndedAtRef = useRef<number | null>(null)
+  const phaseAtRef = useRef(0)
   const [, setTick] = useState(0)
 
   useLayoutEffect(() => {
-    if (streaming) streamEndedAtRef.current = null
-    else if (streamEndedAtRef.current === null) streamEndedAtRef.current = performance.now()
-  }, [streaming])
-
-  useLayoutEffect(() => {
     if (width <= 0) return
-    const oldLayout = wordHomes(oldText, width)
-    const existing = new Map(particlesRef.current.map((p) => [p.id, p]))
+    phaseAtRef.current = performance.now()
+    settledRef.current = false
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const existing = new Map(particlesRef.current.map((item) => [item.id, item]))
 
-    if (streaming || newText.length === 0) {
-      destReadyRef.current = false
-      particlesRef.current = oldLayout.words.map((home) => stayParticle(home, existing.get(`s-${home.index}`)))
-      settledRef.current = false
-      setTick((n) => n + 1)
+    if (phase === 'history') {
+      const oldLayout = wordHomes(oldText, width)
+      const newLayout = wordHomes(newText, width)
+      const pairing = pairWords(oldLayout.words, newLayout.words)
+      const next: WordParticle[] = []
+      const homeOf = (home: WordHome) => ({ x: home.x, y: home.y })
+      for (const { old, neu } of pairing.survivors) {
+        const prev = existing.get(`s-${old.index}`)
+        next.push(particle(`s-${old.index}`, neu.word, 'same', prev, homeOf(old), {
+          tx: neu.x,
+          ty: neu.y,
+          opacity: 1,
+          blur: 0,
+          mark: 0,
+        }))
+      }
+      for (const old of pairing.deletions) {
+        const prev = existing.get(`s-${old.index}`) ?? existing.get(`d-${old.index}`)
+        next.push(particle(`d-${old.index}`, old.word, 'del', prev, homeOf(old), {
+          tx: old.x,
+          ty: old.y,
+          opacity: 0,
+          blur: EXIT_BLUR,
+          mark: 0,
+        }))
+      }
+      for (const neu of pairing.insertions) {
+        const prev = existing.get(`i-${neu.index}`)
+        next.push(particle(
+          `i-${neu.index}`,
+          neu.word,
+          'add',
+          prev,
+          homeOf(neu),
+          { tx: neu.x, ty: neu.y, opacity: 1, blur: 0, mark: 0 },
+          { opacity: 0, blur: EXIT_BLUR, mark: 0 },
+        ))
+      }
+      if (reduced) snap(next)
+      particlesRef.current = next
+      setTick((count) => count + 1)
       onReady()
       return
     }
 
-    const newLayout = wordHomes(newText, width)
-    destReadyRef.current = true
-    const pairing = pairWords(oldLayout.words, newLayout.words)
-    const next: WordParticle[] = []
-
-    for (const { old, neu } of pairing.survivors) {
-      const prev = existing.get(`s-${old.index}`)
-      next.push({
-        id: `s-${old.index}`,
-        word: neu.word,
-        x: prev?.x ?? old.x,
-        y: prev?.y ?? old.y,
-        tx: neu.x,
-        ty: neu.y,
-        opacity: prev?.opacity ?? 1,
-        targetOpacity: 1,
-        blur: 0,
-        targetBlur: 0,
-        kind: 'stay',
+    if (phase === 'stream' || newText.length === 0) {
+      const { tokens, lead } = tokenizeForLayout(oldText)
+      const placed = placeWords(tokens, width, lead)
+      particlesRef.current = tokens.map((token, index) => {
+        const home = placed[index] ?? { x: 0, y: 0 }
+        return particle(`b-${index}`, token.text, 'same', existing.get(`b-${index}`), home, {
+          tx: home.x,
+          ty: home.y,
+          opacity: 1,
+          blur: 0,
+          mark: 0,
+        })
       })
+      setTick((count) => count + 1)
+      onReady()
+      return
     }
 
-    for (const old of pairing.deletions) {
-      const prev = existing.get(`s-${old.index}`) ?? existing.get(`d-${old.index}`)
-      next.push({
-        id: `d-${old.index}`,
-        word: old.word,
-        x: prev?.x ?? old.x,
-        y: prev?.y ?? old.y,
-        tx: old.x,
-        ty: old.y,
-        opacity: prev?.opacity ?? 1,
-        targetOpacity: 0,
-        blur: prev?.blur ?? 0,
-        targetBlur: EXIT_BLUR,
-        kind: 'exit',
-      })
-    }
-
-    for (const neu of pairing.insertions) {
-      const prev = existing.get(`i-${neu.index}`)
-      next.push({
-        id: `i-${neu.index}`,
-        word: neu.word,
-        x: prev?.x ?? neu.x,
-        y: prev?.y ?? neu.y,
-        tx: neu.x,
-        ty: neu.y,
-        opacity: prev?.opacity ?? 0,
-        targetOpacity: 1,
-        blur: prev?.blur ?? EXIT_BLUR,
-        targetBlur: 0,
-        kind: 'enter',
-      })
-    }
-
-    particlesRef.current = next
-    settledRef.current = false
-    setTick((n) => n + 1)
+    const layout = reviewLayout(oldText, newText, focusRange ?? null)
+    const beforePos = placeWords(layout.beforeTokens, width, layout.beforeLead)
+    const afterPos = placeWords(layout.afterTokens, width, layout.afterLead)
+    const diffPos = placeWords(layout.words, width, layout.diffLead)
+    particlesRef.current = layout.words.map((word, index) => {
+      const diff = diffPos[index] ?? { x: 0, y: 0 }
+      const old = pointAt(beforePos, word.oldIndex, diff)
+      const next = pointAt(afterPos, word.newIndex, diff)
+      const prev = existing.get(word.id)
+      const arrived = phase === 'arrive' && word.role === 'add'
+      return particle(
+        word.id,
+        word.text,
+        word.role,
+        prev,
+        arrived ? diff : old,
+        reviewGoal(phase, word, diff, old, next),
+        arrived ? { opacity: 0, blur: EXIT_BLUR, mark: 0 } : undefined,
+      )
+    })
+    if (reduced) snap(particlesRef.current)
+    setTick((count) => count + 1)
     onReady()
-  }, [oldText, newText, width, streaming, onReady])
+  }, [focusRange, newText, oldText, onReady, phase, width])
 
   useEffect(() => {
     let raf = 0
     const loop = () => {
       let moving = false
-      for (const p of particlesRef.current) {
-        const fade = p.kind === 'stay' ? MOVE_RATE : FADE_RATE
-        p.x += (p.tx - p.x) * MOVE_RATE
-        p.y += (p.ty - p.y) * MOVE_RATE
-        p.opacity += (p.targetOpacity - p.opacity) * fade
-        p.blur += (p.targetBlur - p.blur) * fade
+      for (const item of particlesRef.current) {
+        const fade = item.role === 'same' ? MOVE_RATE : FADE_RATE
+        item.x += (item.tx - item.x) * MOVE_RATE
+        item.y += (item.ty - item.y) * MOVE_RATE
+        item.opacity += (item.targetOpacity - item.opacity) * fade
+        item.blur += (item.targetBlur - item.blur) * fade
+        item.mark += (item.targetMark - item.mark) * FADE_RATE
         if (
-          Math.abs(p.tx - p.x) > 0.4 ||
-          Math.abs(p.ty - p.y) > 0.4 ||
-          Math.abs(p.targetOpacity - p.opacity) > 0.02 ||
-          Math.abs(p.targetBlur - p.blur) > 0.08
+          Math.abs(item.tx - item.x) > 0.4 ||
+          Math.abs(item.ty - item.y) > 0.4 ||
+          Math.abs(item.targetOpacity - item.opacity) > 0.02 ||
+          Math.abs(item.targetBlur - item.blur) > 0.08 ||
+          Math.abs(item.targetMark - item.mark) > 0.02
         ) {
           moving = true
         }
       }
-      setTick((n) => n + 1)
-      const endedAt = streamEndedAtRef.current
-      const held = endedAt !== null && performance.now() - endedAt > SETTLE_HOLD_MS
-      if (!streaming && destReadyRef.current && held && !moving && !settledRef.current) {
-        settledRef.current = true
-        onSettled()
+      setTick((count) => count + 1)
+      if (phase === 'stream' || phase === 'review') {
+        if (moving) raf = requestAnimationFrame(loop)
+        return
+      }
+      const held = performance.now() - phaseAtRef.current > HOLD_MS[phase]
+      if (!moving && held) {
+        if (!settledRef.current) {
+          settledRef.current = true
+          if (phase === 'arrive') onHeld()
+          else onSettled()
+        }
         return
       }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-  }, [streaming, onSettled])
+  }, [onHeld, onSettled, phase])
+
+  const showSource = streaming || phase === 'stream' || (phase !== 'history' && newText.length === 0)
 
   return (
-    <div className="absolute left-0 top-0 right-0 pointer-events-none" style={{ zIndex: 3, margin: 0, padding: 0 }}>
-      {streaming || newText.length === 0 ? (
+    <div
+      className="absolute left-0 top-0 right-0 pointer-events-none"
+      style={{ zIndex: 4, margin: 0, padding: 0 }}
+      role={phase === 'review' ? 'region' : undefined}
+      aria-label={phase === 'review' ? 'Review zoom changes' : undefined}
+    >
+      {showSource ? (
         <StreamingSource text={oldText} range={focusRange} />
       ) : (
-        particlesRef.current.map((p) => (
-          <div
-            key={p.id}
-            className="absolute left-0 top-0 text-slate-900 text-[20px] whitespace-pre-wrap"
-            style={{
-              letterSpacing: '-0.01em',
-              lineHeight: 1.625,
-              fontWeight: 400,
-              overflowWrap: 'normal',
-              wordBreak: 'normal',
-              transform: `translate(${p.x}px, ${p.y}px)`,
-              opacity: p.opacity,
-              filter: p.kind === 'stay' ? undefined : `blur(${p.blur}px)`,
-              transformOrigin: 'left top',
-              willChange: 'transform, opacity, filter',
-            }}
-          >
-            {p.word}
-          </div>
-        ))
+        particlesRef.current.map((item) => {
+          const tone = markedColor(item.role, item.mark)
+          return (
+            <div
+              key={item.id}
+              className="absolute left-0 top-0 text-[20px] whitespace-pre"
+              style={{
+                letterSpacing: '-0.01em',
+                lineHeight: 1.625,
+                fontWeight: 400,
+                transform: `translate(${item.x}px, ${item.y}px)`,
+                opacity: item.opacity,
+                filter: item.blur > 0.05 ? `blur(${item.blur}px)` : undefined,
+                transformOrigin: 'left top',
+                willChange: 'transform, opacity, filter',
+                color: tone.color,
+                backgroundColor: tone.backgroundColor,
+                textDecorationLine: tone.textDecorationLine,
+                textDecorationColor: tone.textDecorationColor,
+                borderRadius: 3,
+              }}
+            >
+              {item.word}
+            </div>
+          )
+        })
       )}
     </div>
   )
