@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
 import { reviewLayout, type ReviewWord } from '@/app/lib/reviewLayout'
 import { pairWords, placeWords, tokenizeForLayout, wordHomes, type WordHome } from '@/app/lib/zoomLayout'
+import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
 
 export type BlurPhase = 'stream' | 'arrive' | 'review' | 'accept' | 'reject' | 'history'
 
@@ -47,6 +48,7 @@ type WordBlurOverlayProps = {
   focusRange?: RewriteRange | null
   phase: BlurPhase
   onReady: () => void
+  onReviewBottom: (bottom: number) => void
   onHeld: () => void
   onSettled: () => void
 }
@@ -69,7 +71,7 @@ function StreamingSource({ text, range }: { text: string; range?: RewriteRange |
   }
 
   return (
-    <div className="text-slate-900 text-[20px] whitespace-pre-wrap" style={TEXT_STYLE}>
+    <div className="text-foreground text-[20px] whitespace-pre-wrap" style={TEXT_STYLE}>
       {text.slice(0, range.start)}
       <span className="text-shimmer">{text.slice(range.start, range.end)}</span>
       {text.slice(range.end)}
@@ -77,15 +79,11 @@ function StreamingSource({ text, range }: { text: string; range?: RewriteRange |
   )
 }
 
-function mix(from: number, to: number, amount: number) {
-  return Math.round(from + (to - from) * amount)
-}
-
 function markedColor(role: Role, mark: number) {
   const amount = Math.min(1, Math.max(0, mark))
   if (role === 'add' && amount > 0.01) {
     return {
-      color: `rgb(${mix(15, 2, amount)}, ${mix(23, 44, amount)}, ${mix(42, 34, amount)})`,
+      color: `color-mix(in srgb, #022c22 ${amount * 100}%, var(--foreground))`,
       backgroundColor: `rgba(209, 250, 229, ${amount})`,
       textDecorationLine: undefined,
       textDecorationColor: undefined,
@@ -93,14 +91,14 @@ function markedColor(role: Role, mark: number) {
   }
   if (role === 'del' && amount > 0.01) {
     return {
-      color: `rgb(${mix(15, 69, amount)}, ${mix(23, 10, amount)}, ${mix(42, 10, amount)})`,
+      color: `color-mix(in srgb, #450a0a ${amount * 100}%, var(--foreground))`,
       backgroundColor: `rgba(254, 226, 226, ${amount})`,
       textDecorationLine: amount > 0.08 ? ('line-through' as const) : undefined,
       textDecorationColor: `rgba(153, 27, 27, ${amount})`,
     }
   }
   return {
-    color: '#0f172a',
+    color: 'var(--foreground)',
     backgroundColor: 'transparent',
     textDecorationLine: undefined,
     textDecorationColor: undefined,
@@ -169,6 +167,7 @@ export function WordBlurOverlay({
   focusRange,
   phase,
   onReady,
+  onReviewBottom,
   onHeld,
   onSettled,
 }: WordBlurOverlayProps) {
@@ -251,6 +250,13 @@ export function WordBlurOverlay({
     const beforePos = placeWords(layout.beforeTokens, width, layout.beforeLead)
     const afterPos = placeWords(layout.afterTokens, width, layout.afterLead)
     const diffPos = placeWords(layout.words, width, layout.diffLead)
+    if (phase === 'arrive' || phase === 'review') {
+      const lastLine = [beforePos, afterPos, diffPos].reduce(
+        (bottom, positions) => positions.reduce((max, point) => Math.max(max, point.y), bottom),
+        0,
+      )
+      onReviewBottom(lastLine + LINE_HEIGHT)
+    }
     particlesRef.current = layout.words.map((word, index) => {
       const diff = diffPos[index] ?? { x: 0, y: 0 }
       const old = pointAt(beforePos, word.oldIndex, diff)
@@ -270,7 +276,7 @@ export function WordBlurOverlay({
     if (reduced) snap(particlesRef.current)
     setTick((count) => count + 1)
     onReady()
-  }, [focusRange, newText, oldText, onReady, phase, width])
+  }, [focusRange, newText, oldText, onReady, onReviewBottom, phase, width])
 
   useEffect(() => {
     let raf = 0

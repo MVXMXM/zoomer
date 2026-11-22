@@ -4,11 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { SELECTION_MENU_SETTINGS } from '@/app/lib/selectionMenuSettings'
 import { ControlBar } from '@/app/components/ControlBar'
+import { zoomTargets } from '@/app/lib/zoomTargets'
 import { WordBlurOverlay, type BlurPhase } from '@/app/components/WordBlurOverlay'
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
-import type { ZoomArticleProps } from '@/app/types/zoom'
+import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const EDITOR_HEIGHT = 'calc(100dvh - 96px - 32px)'
 const VIEWPORT_MARGIN = 12
@@ -119,6 +120,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     error,
     activeButton,
     hasSelection,
+    selectionWordCount,
     textareaRef,
     rememberSelection,
     handleRewrite,
@@ -143,6 +145,8 @@ export function ArticleContent(props: ZoomArticleProps) {
   const keepReviewActions = showDock || zoomPhase === 'accept' || zoomPhase === 'reject'
   const overlayPhase: BlurPhase = historyMorph ? 'history' : zoomPhase === 'idle' ? 'stream' : zoomPhase
   const [controlAnchor, setControlAnchor] = useState<ControlAnchor | null>(null)
+  const [reviewBottom, setReviewBottom] = useState<number | null>(null)
+  const reviewTop = keepReviewActions && reviewBottom !== null ? reviewBottom + selectionGap : undefined
 
   const updateControlAnchor = useCallback(() => {
     const textarea = textareaRef.current
@@ -185,14 +189,14 @@ export function ArticleContent(props: ZoomArticleProps) {
   }, [overlayOpen, isLoading, historyMorph, zoomPhase, onTransitioningChange])
 
   useEffect(() => {
-    if (!overlayOpen) return
+    if (!overlayOpen || keepReviewActions) return
     const y = window.scrollY
     const lock = () => {
       if (window.scrollY !== y) window.scrollTo(0, y)
     }
     window.addEventListener('scroll', lock, { passive: true })
     return () => window.removeEventListener('scroll', lock)
-  }, [overlayOpen])
+  }, [overlayOpen, keepReviewActions])
 
   const onReady = useCallback(() => {
     setOverlayReady(true)
@@ -208,6 +212,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     setOldText('')
     setDestText('')
     setFocusRange(null)
+    setReviewBottom(null)
     requestAnimationFrame(() => textareaRef.current?.focus())
   }, [textareaRef])
 
@@ -247,8 +252,8 @@ export function ArticleContent(props: ZoomArticleProps) {
     onTransitioningChange?.(false)
   }, [onTransitioningChange])
 
-  const start = useCallback((operation: 'expand' | 'contract') => {
-    void handleRewrite(operation, {
+  const start = useCallback((operation: ZoomOperation, degree: ZoomDegree = 2) => {
+    void handleRewrite(operation, degree, {
       onStart: (source, range) => {
         phaseRef.current = 'stream'
         setZoomPhase('stream')
@@ -340,18 +345,24 @@ export function ArticleContent(props: ZoomArticleProps) {
       if (!subtract && !add) return
       event.preventDefault()
       if (isLoading || overlayOpen || activeButton) return
-      start(add ? 'expand' : 'contract')
+      const operation = add ? 'expand' : 'contract'
+      const stops = zoomTargets(selectionWordCount).filter((stop) => stop.operation === operation)
+      const stop = stops.find((stop) => stop.degree === 2) ?? stops[0]
+      if (stop) start(operation, stop.degree)
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isLoading, overlayOpen, activeButton, showDock, zoomPhase, start, abortRewrite, undo, redo, playMorph, acceptReview, rejectReview])
+  }, [isLoading, overlayOpen, activeButton, showDock, zoomPhase, start, abortRewrite, undo, redo, playMorph, acceptReview, rejectReview, selectionWordCount])
 
   return (
     <div
       ref={boxRef}
       className="relative [overflow-anchor:none]"
-      style={{ height: EDITOR_HEIGHT }}
+      style={{
+        height: EDITOR_HEIGHT,
+        minHeight: reviewTop === undefined ? undefined : reviewTop + controlHeight,
+      }}
     >
       {overlayOpen && width > 0 && (
         <WordBlurOverlay
@@ -363,6 +374,7 @@ export function ArticleContent(props: ZoomArticleProps) {
           focusRange={focusRange}
           phase={overlayPhase}
           onReady={onReady}
+          onReviewBottom={setReviewBottom}
           onHeld={holdReview}
           onSettled={onSettled}
         />
@@ -377,10 +389,10 @@ export function ArticleContent(props: ZoomArticleProps) {
           handleSelectionChange()
         }}
         className={`h-full w-full resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
-          isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
+          isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-foreground'
         }`}
         style={{
-          caretColor: 'var(--workspace-accent, #06b6d4)',
+          caretColor: 'var(--accent)',
           overflow: 'hidden',
           letterSpacing: '-0.01em',
           whiteSpace: 'pre-wrap',
@@ -398,22 +410,24 @@ export function ArticleContent(props: ZoomArticleProps) {
       />
 
       <ControlBar
+        reviewTop={reviewTop}
+        sourceWords={selectionWordCount}
         menuRef={controlMenuRef}
         settings={SELECTION_MENU_SETTINGS}
-        visible={zoomPhase === 'stream' || showDock || (hasSelection && !overlayOpen && !!controlAnchor)}
+        visible={zoomPhase === 'stream' || (showDock && reviewTop !== undefined) || (hasSelection && !overlayOpen && !!controlAnchor)}
         anchor={controlAnchor ?? (zoomPhase === 'stream' || showDock ? { x: window.innerWidth / 2, y: VIEWPORT_MARGIN, placement: 'below' } : null)}
         loading={zoomPhase === 'stream'}
         review={keepReviewActions ? { onAccept: acceptReview, onReject: rejectReview } : undefined}
         disabled={isLoading || !!activeButton}
-        onContract={() => start('contract')}
-        onExpand={() => start('expand')}
+        onZoom={start}
       />
 
       {error && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-red-50 text-red-700 px-4 py-2 rounded-lg shadow-lg border border-red-200 z-[10000]"
+          role="alert"
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-(--surface) text-foreground px-4 py-2 rounded-lg border border-(--slate-300) z-[10000]"
         >
           {error}
         </motion.div>

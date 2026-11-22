@@ -20,10 +20,6 @@ export function ZoomWorkspace() {
       horizontalPadding: 16,
       verticalPadding: 48,
     },
-    colors: {
-      background: '#f8fafc',
-      accent: '#06b6d4',
-    },
     heading: {
       fontSize: 20,
       weight: 700,
@@ -92,7 +88,6 @@ export function ZoomWorkspace() {
   return (
     <main
       className="min-h-screen flex flex-col items-center [overflow-anchor:none]"
-      style={{ backgroundColor: appearance.colors.background, '--workspace-accent': appearance.colors.accent } as React.CSSProperties}
     >
       <div
         id="top"
@@ -104,8 +99,8 @@ export function ZoomWorkspace() {
         }}
       >
         <h1
-          className="relative m-0 mb-0 shrink-0 overflow-hidden text-[20px] font-bold text-left text-[#06b6d4]"
-          style={{ height: LINE_HEIGHT, lineHeight: `${LINE_HEIGHT}px`, letterSpacing: '-0.01em', fontSize: appearance.heading.fontSize, fontWeight: appearance.heading.weight, color: appearance.colors.accent }}
+          className="relative m-0 mb-0 shrink-0 overflow-hidden text-[20px] font-bold text-left text-(--accent)"
+          style={{ height: LINE_HEIGHT, lineHeight: `${LINE_HEIGHT}px`, letterSpacing: '-0.01em', fontSize: appearance.heading.fontSize, fontWeight: appearance.heading.weight }}
         >
           <MorphingText
             className="absolute inset-0 whitespace-nowrap"

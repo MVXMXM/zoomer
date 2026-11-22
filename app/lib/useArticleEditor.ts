@@ -8,7 +8,7 @@ import {
   wordCount,
   type RewriteRange,
 } from '@/app/lib/rewriteClient'
-import type { ZoomArticleProps, ZoomOperation } from '@/app/types/zoom'
+import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const HISTORY_CAP = 20
 
@@ -43,6 +43,7 @@ export function useArticleEditor({
   const [lastGeneratedContent, setLastGeneratedContent] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const selectionRef = useRef<RewriteRange>({ start: 0, end: 0 })
+  const [selectionWordCount, setSelectionWordCount] = useState(0)
   const contentRef = useRef(content)
   const pastRef = useRef<HistoryEntry[]>([])
   const futureRef = useRef<HistoryEntry[]>([])
@@ -83,6 +84,7 @@ export function useArticleEditor({
     const range = selectionRange(contentRef.current, el.selectionStart, el.selectionEnd)
     selectionRef.current = range ?? { start: el.selectionStart, end: el.selectionStart }
     setHasSelection(Boolean(range))
+    setSelectionWordCount(range ? wordCount(el.value.slice(range.start, range.end)) : 0)
   }, [])
 
   const snapshot = useCallback(
@@ -141,6 +143,7 @@ export function useArticleEditor({
   const handleRewrite = useCallback(
     async (
       operation: ZoomOperation,
+      degree: ZoomDegree,
       hooks?: {
         onStart?: (oldText: string, range: RewriteRange | null) => void
         onUpdate?: (text: string) => void
@@ -192,13 +195,17 @@ export function useArticleEditor({
         const result = await streamRewrite(
           excerpt ?? oldText,
           operation,
+          degree,
           (chunk) => {
             if (controller.signal.aborted) return
             const next = stitchRewrite(oldText, range, chunk)
             setContent(next)
             hooks?.onUpdate?.(next)
           },
-          { excerpt: true, context: oldText, signal: controller.signal },
+          {
+            boundaries: { before: oldText.slice(0, range.start), after: oldText.slice(range.end) },
+            signal: controller.signal,
+          },
         )
         if (abortRef.current === controller) abortRef.current = null
         if (controller.signal.aborted) {
@@ -222,8 +229,8 @@ export function useArticleEditor({
         setContent(oldText)
         hooks?.onError?.()
         if (isAbortError(err) || controller.signal.aborted) return
-        console.error(`Error ${operation}ing text:`, err)
-        setError(`Failed to ${operation} text. Please try again.`)
+        if (!(err instanceof RangeError)) console.error(`Error ${operation}ing text:`, err)
+        setError(err instanceof RangeError ? err.message : `Failed to ${operation} text. Please try again.`)
         setTimeout(() => setError(null), 3000)
       } finally {
         if (abortRef.current === controller) abortRef.current = null
@@ -241,6 +248,7 @@ export function useArticleEditor({
     error,
     activeButton,
     hasSelection,
+    selectionWordCount,
     hasPerformedFirstZoom,
     textareaRef,
     rememberSelection,

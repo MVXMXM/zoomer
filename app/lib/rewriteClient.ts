@@ -1,4 +1,4 @@
-import type { ZoomOperation } from '@/app/types/zoom'
+import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter((word) => word.length > 0).length
@@ -24,34 +24,36 @@ export function stitchRewrite(
 ): string {
   if (!range) return replacement
   const selected = source.slice(range.start, range.end)
-  let body = replacement
-  // Triple-click includes a trailing newline; still keep a one-line rewrite.
-  if (!selected.replace(/\n+$/, '').includes('\n')) {
+  const leadingSpace = selected.match(/^\s*/)?.[0] ?? ''
+  const trailingSpace = selected.match(/\s*$/)?.[0] ?? ''
+  let body = replacement.trim()
+  if (!selected.trim().includes('\n')) {
     body = replacement.replace(/\s*\n+\s*/g, ' ').trim()
   }
-  // Keep the following line separate when the highlight ate the break.
-  if (selected.endsWith('\n') && !body.endsWith('\n')) body += '\n'
-  return source.slice(0, range.start) + body + source.slice(range.end)
+  return source.slice(0, range.start) + leadingSpace + body + trailingSpace + source.slice(range.end)
 }
 
 export async function streamRewrite(
   text: string,
   operation: ZoomOperation,
+  degree: ZoomDegree,
   onUpdate: (full: string) => void,
-  options?: { excerpt?: boolean; context?: string; signal?: AbortSignal },
+  options?: { boundaries?: { before: string; after: string }; signal?: AbortSignal },
 ): Promise<string> {
   const response = await fetch('/api/rewrite', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      prompt: `"${text}"`,
+      prompt: text,
       operation,
-      excerpt: Boolean(options?.excerpt),
-      context: options?.context,
+      degree,
+      excerpt: Boolean(options?.boundaries),
+      boundaries: options?.boundaries,
     }),
     signal: options?.signal,
   })
 
+  if (response.status === 422) throw new RangeError(await response.text())
   if (!response.ok || !response.body) {
     throw new Error(`Rewrite failed (${response.status})`)
   }
