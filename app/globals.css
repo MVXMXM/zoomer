@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -39,6 +40,67 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   overflow-anchor: none;
+}
+
+.document-workspace {
+  --workspace-background: var(--slate-50);
+  --workspace-gutter: clamp(24px, 5vw, 48px);
+  --page-margin: clamp(20px, 6vw, 48px);
+  --document-status-height: 32px;
+  --document-status-gap: 12px;
+  min-height: 100dvh;
+  background-color: var(--workspace-background);
+}
+
+.document-workspace::after {
+  content: '';
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 10;
+  height: var(--workspace-gutter);
+  background: linear-gradient(to bottom, transparent, var(--workspace-background) 65%);
+  pointer-events: none;
+}
+
+.document-layout {
+  box-sizing: content-box;
+  max-width: 790px;
+  padding: var(--workspace-gutter) 16px;
+}
+
+:is(.document-status, .document-footer) {
+  color: var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.document-status {
+  height: var(--document-status-height);
+  margin-bottom: var(--document-status-gap);
+  line-height: var(--document-status-height);
+}
+
+.document-page {
+  padding: var(--page-margin);
+  background-color: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px oklch(0.25 0.04 260 / 0.12);
+}
+
+.document-editor {
+  height: max(16rem, calc(100dvh - 2 * var(--page-margin)));
+}
+
+.document-footer {
+  margin-top: var(--workspace-gutter);
+  line-height: normal;
+}
+
+.document-footer a {
+  text-decoration: underline;
 }
 
 ::selection {
