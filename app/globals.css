@@ -2,8 +2,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc; /* slate-50 */
-  --foreground: #1a1a1a;
+  /* Maximin /system palette */
+  --slate-0: #fcfcfc;
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cad5e2;
+  --slate-400: #90a1b9;
+  --slate-500: #62748e;
+  --slate-600: #45556c;
+  --slate-800: #1d293d;
+  --slate-900: #0f172b;
+  --slate-950: #020618;
+  --accent: #00bbff;
+  --background: var(--slate-50);
+  --foreground: var(--slate-900);
+  --surface: var(--slate-0);
+  --hairline: var(--slate-200);
   --font-sans: 'Archivo', sans-serif;
 }
 
@@ -26,11 +41,16 @@ body {
   overflow-anchor: none;
 }
 
+::selection {
+  color: var(--slate-950);
+  background: color-mix(in srgb, var(--accent) 33%, transparent);
+}
+
 .selection-segments {
   overflow: hidden;
   border-radius: 40px;
   background: var(--background);
-  box-shadow: inset 0 0 0 1px var(--hairline, #e2e8f0), 0 4px 16px rgb(15 23 42 / 0.12);
+  box-shadow: inset 0 0 0 1px var(--hairline), 0 4px 16px color-mix(in srgb, var(--slate-950) 12%, transparent);
 }
 
 .selection-segments .segmented-controller {
@@ -74,7 +94,7 @@ body {
 
 /* Loading text animation */
 .loading-text {
-  color: #94a3b8;
+  color: var(--slate-500);
 }
 
 @keyframes text-shimmer {
@@ -89,15 +109,15 @@ body {
 .text-shimmer {
   background-image: linear-gradient(
     90deg,
-    #737373 0%,
-    #737373 18%,
-    #9a9a9a 32%,
-    #c4c4c4 42%,
-    #e5e5e5 50%,
-    #c4c4c4 58%,
-    #9a9a9a 68%,
-    #737373 82%,
-    #737373 100%
+    var(--slate-500) 0%,
+    var(--slate-500) 18%,
+    var(--slate-400) 32%,
+    var(--slate-300) 42%,
+    var(--slate-200) 50%,
+    var(--slate-300) 58%,
+    var(--slate-400) 68%,
+    var(--slate-500) 82%,
+    var(--slate-500) 100%
   );
   background-size: 250% 100%;
   background-clip: text;
@@ -120,8 +140,8 @@ body {
   .text-shimmer {
     animation: none;
     background: none;
-    color: #737373;
-    -webkit-text-fill-color: #737373;
+    color: var(--slate-500);
+    -webkit-text-fill-color: var(--slate-500);
   }
 
   .review-in {

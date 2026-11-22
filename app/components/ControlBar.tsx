@@ -135,7 +135,7 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
                 : { duration: menuMotion.exitDuration, ease: 'easeIn' },
             }
         }
-        className={reviewing ? 'selection-segments review-segments w-max' : 'selection-segments w-max rounded-2xl!'}
+        className={reviewing ? 'selection-segments review-segments w-max' : 'selection-segments w-max'}
         style={{
           transformOrigin: anchor?.placement === 'above' ? '50% 100%' : '50% 0%',
           height: settings.shape.height,
@@ -147,7 +147,7 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
       >
         <fieldset ref={fieldsetRef} disabled={loading || (disabled && !reviewing)} className="relative left-1/2 m-0 h-full w-max min-w-0 -translate-x-1/2 border-0 p-0">
           {loading ? (
-            <div role="status" className="flex h-full items-center gap-2 px-6 text-sm font-medium text-slate-950">
+            <div role="status" className="flex h-full items-center gap-2 px-6 text-sm font-medium text-(--slate-950)">
               <LoaderCircle className="size-[18px] motion-safe:animate-spin" aria-hidden="true" />
               Zooming…
             </div>
@@ -165,10 +165,9 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
           ) : (
             <div className="flex h-full w-[min(18rem,calc(100vw-2rem))] flex-col justify-center gap-1 px-3" role="group" aria-label="Semantic zoom strength">
               <div className="flex items-center justify-center">
-                <span className="text-xs font-semibold tabular-nums text-slate-800">{dragIndex === null ? hoveredLabel ?? focusedLabel ?? selectedLabel : dragLabel}</span>
+                <span className="text-xs font-semibold tabular-nums text-(--slate-800)">{dragIndex === null ? hoveredLabel ?? focusedLabel ?? selectedLabel : dragLabel}</span>
               </div>
-              <div className="flex h-7 items-center gap-1 rounded-lg bg-slate-100/80 px-2 text-slate-600">
-                <Microscope size={16} className="shrink-0" aria-hidden="true" />
+              <div className="flex h-7 items-center rounded-full bg-(--slate-100) text-(--slate-600)">
                 <div
                   className={`relative grid h-full min-w-0 flex-1 touch-none select-none ${dragIndex === null ? 'cursor-grab' : 'cursor-grabbing'}`}
                   style={{ gridTemplateColumns: `repeat(${availableStops.length}, minmax(0, 1fr))` }}
@@ -193,16 +192,22 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
                 >
                   <span
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-y-0.5 rounded-md bg-slate-300"
+                    className="pointer-events-none absolute inset-y-0.5 rounded-full bg-(--accent)"
                     style={{
                       left: `${bandStart / availableStops.length * 100}%`,
                       right: `${(1 - bandEnd / availableStops.length) * 100}%`,
                     }}
                   >
                     <span
-                      className={`absolute top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-full bg-slate-500 ${notchPosition}`}
+                      className={`absolute top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-full bg-(--slate-600) ${notchPosition}`}
                     />
                   </span>
+                  {stops.some(({ operation }) => operation === 'contract') && (
+                    <Microscope size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2" aria-hidden="true" />
+                  )}
+                  {stops.some(({ operation }) => operation === 'expand') && (
+                    <Telescope size={16} className="pointer-events-none absolute right-3 top-1/2 z-10 -translate-y-1/2" aria-hidden="true" />
+                  )}
                   {availableStops.map((stop) => {
                     if (!stop) {
                       return (
@@ -232,13 +237,12 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
                             setFocusedLabel(null)
                             onZoom(operation, degree)
                           }}
-                          className="grid size-full cursor-inherit place-items-center rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan-700"
+                          className="grid size-full cursor-inherit place-items-center rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--slate-950)"
                         />
                       </div>
                     )
                   })}
                 </div>
-                <Telescope size={16} className="shrink-0" aria-hidden="true" />
               </div>
             </div>
           )}

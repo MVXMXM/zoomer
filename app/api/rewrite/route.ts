@@ -69,23 +69,23 @@ export async function POST(req: Request) {
     const input = hasBoundaries
       ? { before: boundaries.before, passage: prompt, after: boundaries.after }
       : { passage: prompt, ...(excerpt && context ? { surroundingText: context } : {}) }
-    let previousCount: number | undefined
+    let previousAttempt: { draft: string; wordCount: number } | undefined
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await openai.responses.create({
         model: 'gpt-6-luna',
         reasoning: { effort: 'low' },
         max_output_tokens: 4096,
-        instructions: previousCount === undefined
+        instructions: previousAttempt === undefined
           ? instructions
-          : `${instructions}\nThe previous attempt returned ${previousCount} words and did not pass validation. Rewrite from the source and check the length before submitting.`,
-        input: JSON.stringify(input),
+          : `${instructions}\nThe previous draft had ${previousAttempt.wordCount} words and did not pass validation. Use it as a starting point if it fits the surrounding text. Adjust it toward ${targetWords} words and check the final count before submitting.`,
+        input: JSON.stringify({ ...input, previousAttempt }),
       }, { signal: req.signal })
       const candidate = response.output_text.trim()
       const count = wordCount(candidate)
       if (response.status === 'completed' && count >= minWords && count <= maxWords) {
         return new Response(candidate, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' } })
       }
-      previousCount = count
+      previousAttempt = { draft: candidate, wordCount: count }
     }
     return new Response('The rewrite missed its target word count. Please try again.', { status: 422 })
   } catch (error) {

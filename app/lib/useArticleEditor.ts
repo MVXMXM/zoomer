@@ -229,7 +229,7 @@ export function useArticleEditor({
         setContent(oldText)
         hooks?.onError?.()
         if (isAbortError(err) || controller.signal.aborted) return
-        console.error(`Error ${operation}ing text:`, err)
+        if (!(err instanceof RangeError)) console.error(`Error ${operation}ing text:`, err)
         setError(err instanceof RangeError ? err.message : `Failed to ${operation} text. Please try again.`)
         setTimeout(() => setError(null), 3000)
       } finally {

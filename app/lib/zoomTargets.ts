@@ -25,7 +25,7 @@ export function zoomTargets(sourceWords: number) {
     const lower = stop.operation === 'expand' ? Math.max(sourceWords, targets[index - 1]?.target ?? 0) : targets[index - 1]?.target ?? 0
     const upper = stop.operation === 'contract' ? Math.min(sourceWords, targets[index + 1]?.target ?? sourceWords) : targets[index + 1]?.target ?? Infinity
     const tolerance = Math.min(
-      Math.floor(sourceWords * 0.03),
+      Math.max(1, Math.round(stop.target * 0.05)),
       Math.floor((stop.target - lower - 1) / 2),
       Math.floor((upper - stop.target - 1) / 2),
     )

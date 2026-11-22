@@ -389,10 +389,10 @@ export function ArticleContent(props: ZoomArticleProps) {
           handleSelectionChange()
         }}
         className={`h-full w-full resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
-          isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
+          isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-foreground'
         }`}
         style={{
-          caretColor: 'var(--workspace-accent, #06b6d4)',
+          caretColor: 'var(--accent)',
           overflow: 'hidden',
           letterSpacing: '-0.01em',
           whiteSpace: 'pre-wrap',
@@ -426,7 +426,8 @@ export function ArticleContent(props: ZoomArticleProps) {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-red-50 text-red-700 px-4 py-2 rounded-lg shadow-lg border border-red-200 z-[10000]"
+          role="alert"
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-(--surface) text-foreground px-4 py-2 rounded-lg border border-(--slate-300) z-[10000]"
         >
           {error}
         </motion.div>

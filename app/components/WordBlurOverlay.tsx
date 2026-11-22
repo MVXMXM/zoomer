@@ -71,7 +71,7 @@ function StreamingSource({ text, range }: { text: string; range?: RewriteRange |
   }
 
   return (
-    <div className="text-slate-900 text-[20px] whitespace-pre-wrap" style={TEXT_STYLE}>
+    <div className="text-foreground text-[20px] whitespace-pre-wrap" style={TEXT_STYLE}>
       {text.slice(0, range.start)}
       <span className="text-shimmer">{text.slice(range.start, range.end)}</span>
       {text.slice(range.end)}
@@ -79,15 +79,11 @@ function StreamingSource({ text, range }: { text: string; range?: RewriteRange |
   )
 }
 
-function mix(from: number, to: number, amount: number) {
-  return Math.round(from + (to - from) * amount)
-}
-
 function markedColor(role: Role, mark: number) {
   const amount = Math.min(1, Math.max(0, mark))
   if (role === 'add' && amount > 0.01) {
     return {
-      color: `rgb(${mix(15, 2, amount)}, ${mix(23, 44, amount)}, ${mix(42, 34, amount)})`,
+      color: `color-mix(in srgb, #022c22 ${amount * 100}%, var(--foreground))`,
       backgroundColor: `rgba(209, 250, 229, ${amount})`,
       textDecorationLine: undefined,
       textDecorationColor: undefined,
@@ -95,14 +91,14 @@ function markedColor(role: Role, mark: number) {
   }
   if (role === 'del' && amount > 0.01) {
     return {
-      color: `rgb(${mix(15, 69, amount)}, ${mix(23, 10, amount)}, ${mix(42, 10, amount)})`,
+      color: `color-mix(in srgb, #450a0a ${amount * 100}%, var(--foreground))`,
       backgroundColor: `rgba(254, 226, 226, ${amount})`,
       textDecorationLine: amount > 0.08 ? ('line-through' as const) : undefined,
       textDecorationColor: `rgba(153, 27, 27, ${amount})`,
     }
   }
   return {
-    color: '#0f172a',
+    color: 'var(--foreground)',
     backgroundColor: 'transparent',
     textDecorationLine: undefined,
     textDecorationColor: undefined,
