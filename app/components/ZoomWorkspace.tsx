@@ -102,7 +102,7 @@ export function ZoomWorkspace() {
         </div>
         <footer className="document-footer">
           {'"ZOOMER" BY '}
-          <a href="https://www.maximillian.nyc">MAXIMILLIAN PIRAS</a>
+          <a href="https://mvxmxm.com">MAXIMILLIAN PIRAS</a>
         </footer>
       </div>
     </main>
