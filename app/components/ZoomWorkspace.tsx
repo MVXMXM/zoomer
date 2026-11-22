@@ -4,8 +4,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { MorphingText } from '@/registry/magicui/morphing-text'
 import { ArticleContent } from '@/app/components/ArticleContent'
 import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
+import { wordCount } from '@/app/lib/rewriteClient'
 import type { ZoomOperation } from '@/app/types/zoom'
 import zoomerVersion from '@/zoomer-version.json'
+
+const INITIAL_CONTENT =
+  `Welcome to Zoomer (v${zoomerVersion.version}), a LLM toy to let you easily experiment with semantic zoom. ` +
+  'Highlight this text to reveal a control bar that allows you to zoom in (distill selected text to its irreducible simplicity) or zoom out (extrapolate selected text into a more exhaustive & thorough representation). ' +
+  'This app works like a word document, allowing you to type or paste any text you want to apply semantic zoom to.'
 
 export function ZoomWorkspace() {
   const appearance = {
@@ -29,7 +35,7 @@ export function ZoomWorkspace() {
   const [isLoading, setIsLoading] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
-  const [hasText, setHasText] = useState(false)
+  const [currentWordCount, setCurrentWordCount] = useState(() => wordCount(INITIAL_CONTENT))
   const [hasSelection, setHasSelection] = useState(false)
   const [lastOperation, setLastOperation] = useState<{
     type: ZoomOperation
@@ -39,10 +45,10 @@ export function ZoomWorkspace() {
   const chromeBusy = isLoading || isTransitioning
 
   useEffect(() => {
-    if (!hasText) {
+    if (currentWordCount === 0) {
       setLastOperation(null)
     }
-  }, [hasText])
+  }, [currentWordCount])
 
   const handleLoadingStateChange = useCallback(
     (
@@ -80,17 +86,12 @@ export function ZoomWorkspace() {
         </>
       )
     }
-    if (hasText) return 'Select text to zoom'
-    return (
-      <>
-        Welcome to Zoomer <span className="font-normal">(v{zoomerVersion.version})</span>
-      </>
-    )
+    return <>{currentWordCount} {currentWordCount === 1 ? 'word' : 'words'}</>
   }
 
   return (
     <main
-      className="min-h-screen flex flex-col items-center justify-center [overflow-anchor:none]"
+      className="min-h-screen flex flex-col items-center [overflow-anchor:none]"
       style={{ backgroundColor: appearance.colors.background, '--workspace-accent': appearance.colors.accent } as React.CSSProperties}
     >
       <div
@@ -116,9 +117,9 @@ export function ZoomWorkspace() {
           </MorphingText>
         </h1>
         <ArticleContent
-          initialContent=""
+          initialContent={INITIAL_CONTENT}
           onLoadingStateChange={handleLoadingStateChange}
-          onHasTextChange={setHasText}
+          onWordCountChange={setCurrentWordCount}
           onContentManuallyEdited={() => setLastOperation(null)}
           onSelectionChange={setHasSelection}
           onTransitioningChange={setIsTransitioning}

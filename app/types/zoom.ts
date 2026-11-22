@@ -8,9 +8,7 @@ export type ZoomArticleProps = {
     operationSummary?: { beforeCount: number; afterCount: number },
   ) => void
   onWordCountChange?: (wordCount: number) => void
-  onHasTextChange?: (hasText: boolean) => void
   onContentManuallyEdited?: () => void
-  onEngagementChange?: (isEngaged: boolean) => void
   onSelectionChange?: (hasSelection: boolean) => void
   onTransitioningChange?: (isTransitioning: boolean) => void
 }
