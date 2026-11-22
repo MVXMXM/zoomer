@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
 import { reviewLayout, type ReviewWord } from '@/app/lib/reviewLayout'
 import { pairWords, placeWords, tokenizeForLayout, wordHomes, type WordHome } from '@/app/lib/zoomLayout'
+import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
 
 export type BlurPhase = 'stream' | 'arrive' | 'review' | 'accept' | 'reject' | 'history'
 
@@ -47,6 +48,7 @@ type WordBlurOverlayProps = {
   focusRange?: RewriteRange | null
   phase: BlurPhase
   onReady: () => void
+  onReviewBottom: (bottom: number) => void
   onHeld: () => void
   onSettled: () => void
 }
@@ -169,6 +171,7 @@ export function WordBlurOverlay({
   focusRange,
   phase,
   onReady,
+  onReviewBottom,
   onHeld,
   onSettled,
 }: WordBlurOverlayProps) {
@@ -251,6 +254,13 @@ export function WordBlurOverlay({
     const beforePos = placeWords(layout.beforeTokens, width, layout.beforeLead)
     const afterPos = placeWords(layout.afterTokens, width, layout.afterLead)
     const diffPos = placeWords(layout.words, width, layout.diffLead)
+    if (phase === 'arrive' || phase === 'review') {
+      const lastLine = [beforePos, afterPos, diffPos].reduce(
+        (bottom, positions) => positions.reduce((max, point) => Math.max(max, point.y), bottom),
+        0,
+      )
+      onReviewBottom(lastLine + LINE_HEIGHT)
+    }
     particlesRef.current = layout.words.map((word, index) => {
       const diff = diffPos[index] ?? { x: 0, y: 0 }
       const old = pointAt(beforePos, word.oldIndex, diff)
@@ -270,7 +280,7 @@ export function WordBlurOverlay({
     if (reduced) snap(particlesRef.current)
     setTick((count) => count + 1)
     onReady()
-  }, [focusRange, newText, oldText, onReady, phase, width])
+  }, [focusRange, newText, oldText, onReady, onReviewBottom, phase, width])
 
   useEffect(() => {
     let raf = 0

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { SELECTION_MENU_SETTINGS } from '@/app/lib/selectionMenuSettings'
 import { ControlBar } from '@/app/components/ControlBar'
+import { zoomTargets } from '@/app/lib/zoomTargets'
 import { WordBlurOverlay, type BlurPhase } from '@/app/components/WordBlurOverlay'
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
@@ -120,6 +121,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     activeButton,
     shouldExpand,
     hasSelection,
+    selectionWordCount,
     textareaRef,
     rememberSelection,
     handleRewrite,
@@ -144,6 +146,8 @@ export function ArticleContent(props: ZoomArticleProps) {
   const keepReviewActions = showDock || zoomPhase === 'accept' || zoomPhase === 'reject'
   const overlayPhase: BlurPhase = historyMorph ? 'history' : zoomPhase === 'idle' ? 'stream' : zoomPhase
   const [controlAnchor, setControlAnchor] = useState<ControlAnchor | null>(null)
+  const [reviewBottom, setReviewBottom] = useState<number | null>(null)
+  const reviewTop = keepReviewActions && reviewBottom !== null ? reviewBottom + selectionGap : undefined
 
   const updateControlAnchor = useCallback(() => {
     const textarea = textareaRef.current
@@ -186,14 +190,14 @@ export function ArticleContent(props: ZoomArticleProps) {
   }, [overlayOpen, isLoading, historyMorph, zoomPhase, onTransitioningChange])
 
   useEffect(() => {
-    if (!overlayOpen) return
+    if (!overlayOpen || keepReviewActions) return
     const y = window.scrollY
     const lock = () => {
       if (window.scrollY !== y) window.scrollTo(0, y)
     }
     window.addEventListener('scroll', lock, { passive: true })
     return () => window.removeEventListener('scroll', lock)
-  }, [overlayOpen])
+  }, [overlayOpen, keepReviewActions])
 
   const onReady = useCallback(() => {
     setOverlayReady(true)
@@ -209,6 +213,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     setOldText('')
     setDestText('')
     setFocusRange(null)
+    setReviewBottom(null)
     requestAnimationFrame(() => textareaRef.current?.focus())
   }, [textareaRef])
 
@@ -341,12 +346,15 @@ export function ArticleContent(props: ZoomArticleProps) {
       if (!subtract && !add) return
       event.preventDefault()
       if (isLoading || overlayOpen || activeButton) return
-      start(add ? 'expand' : 'contract')
+      const operation = add ? 'expand' : 'contract'
+      const stops = zoomTargets(selectionWordCount).filter((stop) => stop.operation === operation)
+      const stop = stops.find((stop) => stop.degree === 2) ?? stops[0]
+      if (stop) start(operation, stop.degree)
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isLoading, overlayOpen, activeButton, showDock, zoomPhase, start, abortRewrite, undo, redo, playMorph, acceptReview, rejectReview])
+  }, [isLoading, overlayOpen, activeButton, showDock, zoomPhase, start, abortRewrite, undo, redo, playMorph, acceptReview, rejectReview, selectionWordCount])
 
   return (
     <div
@@ -354,6 +362,7 @@ export function ArticleContent(props: ZoomArticleProps) {
       className="relative [overflow-anchor:none]"
       style={{
         height: shouldExpand ? REST_HEIGHT : '200px',
+        minHeight: reviewTop === undefined ? undefined : reviewTop + controlHeight,
         transition: overlayOpen || isLoading ? 'none' : 'height 1000ms cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
@@ -367,6 +376,7 @@ export function ArticleContent(props: ZoomArticleProps) {
           focusRange={focusRange}
           phase={overlayPhase}
           onReady={onReady}
+          onReviewBottom={setReviewBottom}
           onHeld={holdReview}
           onSettled={onSettled}
         />
@@ -404,9 +414,11 @@ export function ArticleContent(props: ZoomArticleProps) {
       />
 
       <ControlBar
+        reviewTop={reviewTop}
+        sourceWords={selectionWordCount}
         menuRef={controlMenuRef}
         settings={SELECTION_MENU_SETTINGS}
-        visible={zoomPhase === 'stream' || showDock || (hasSelection && !overlayOpen && !!controlAnchor)}
+        visible={zoomPhase === 'stream' || (showDock && reviewTop !== undefined) || (hasSelection && !overlayOpen && !!controlAnchor)}
         anchor={controlAnchor ?? (zoomPhase === 'stream' || showDock ? { x: window.innerWidth / 2, y: VIEWPORT_MARGIN, placement: 'below' } : null)}
         loading={zoomPhase === 'stream'}
         review={keepReviewActions ? { onAccept: acceptReview, onReject: rejectReview } : undefined}

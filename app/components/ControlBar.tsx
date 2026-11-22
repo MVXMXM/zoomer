@@ -2,12 +2,16 @@
 
 import { SegmentedController } from '@mvxmxm/maxos'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { LoaderCircle } from 'lucide-react'
+import type { PointerEvent } from 'react'
+import { LoaderCircle, Microscope, Telescope } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import type { SelectionMenuSettings } from '@/app/lib/selectionMenuSettings'
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
+import { zoomTargets } from '@/app/lib/zoomTargets'
 
 type ControlBarProps = {
+  sourceWords: number
+  reviewTop?: number
   menuRef: React.Ref<HTMLDivElement>
   settings: SelectionMenuSettings
   visible: boolean
@@ -22,24 +26,54 @@ type ControlBarProps = {
   review?: { onAccept: () => void; onReject: () => void }
 }
 
-const zoomSegments = [
-  { id: '-50', label: '−50%', operation: 'contract', degree: 3 },
-  { id: '-25', label: '−25%', operation: 'contract', degree: 2 },
-  { id: '-10', label: '−10%', operation: 'contract', degree: 1 },
-  { id: 'idle', label: '0' },
-  { id: '+10', label: '+10%', operation: 'expand', degree: 1 },
-  { id: '+25', label: '+25%', operation: 'expand', degree: 2 },
-  { id: '+50', label: '+50%', operation: 'expand', degree: 3 },
-] as const
-
-type ZoomSegment = typeof zoomSegments[number]['id'] | 'accept' | 'reject'
-
 const reviewSegments = [
   { id: 'reject', label: 'Reject' },
   { id: 'accept', label: 'Accept' },
 ] as const
 
-export function ControlBar({ menuRef, settings, visible, anchor, disabled, loading, onZoom, review }: ControlBarProps) {
+const zoomStops = [
+  ['contract', 3, 'Strong distillation'],
+  ['contract', 2, 'Medium distillation'],
+  ['contract', 1, 'Light distillation'],
+  null,
+  ['expand', 1, 'Light extrapolation'],
+  ['expand', 2, 'Medium extrapolation'],
+  ['expand', 3, 'Strong extrapolation'],
+] as const
+
+export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible, anchor, disabled, loading, onZoom, review }: ControlBarProps) {
+  const stops = zoomTargets(sourceWords)
+  const availableStops = zoomStops.filter((stop) =>
+    !stop || stops.some(({ operation, degree }) => operation === stop[0] && degree === stop[1]),
+  )
+  const neutralIndex = availableStops.indexOf(null)
+  const [dragPosition, setDragPosition] = useState<number | null>(null)
+  const dragIndex = dragPosition === null ? null : Math.floor(dragPosition)
+  const bandPosition = dragPosition ?? neutralIndex + 0.5
+  const bandStart = Math.max(0, Math.min(neutralIndex, bandPosition - 0.5))
+  const bandEnd = Math.min(availableStops.length, Math.max(neutralIndex + 1, bandPosition + 0.5))
+  const notchPosition = dragIndex === null || dragIndex === neutralIndex
+    ? 'left-1/2 -translate-x-1/2'
+    : dragIndex < neutralIndex ? 'left-1.5' : 'right-1.5'
+  const pointerId = useRef<number | null>(null)
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null)
+  const [focusedLabel, setFocusedLabel] = useState<string | null>(null)
+  const selectedLabel = `${sourceWords} selected ${sourceWords === 1 ? 'word' : 'words'}`
+  const activeStop = dragIndex === null ? null : availableStops[dragIndex]
+  const activeTarget = activeStop && stops.find(({ operation, degree }) => operation === activeStop[0] && degree === activeStop[1])
+  const dragLabel = activeTarget
+    ? `${activeTarget.operation === 'contract' ? 'Distill' : 'Extrapolate'} to ${activeTarget.target} ${activeTarget.target === 1 ? 'word' : 'words'}`
+    : selectedLabel
+
+  const positionAtPointer = (event: PointerEvent<HTMLDivElement>) => {
+    const { left, width } = event.currentTarget.getBoundingClientRect()
+    return Math.max(0.5, Math.min(availableStops.length - 0.5, (event.clientX - left) / width * availableStops.length))
+  }
+
+  const clearDrag = () => {
+    pointerId.current = null
+    setDragPosition(null)
+  }
   const reduceMotion = useReducedMotion()
   const fieldsetRef = useRef<HTMLFieldSetElement>(null)
   const [contentWidth, setContentWidth] = useState<number>()
@@ -70,11 +104,11 @@ export function ControlBar({ menuRef, settings, visible, anchor, disabled, loadi
     <div
       aria-hidden={!visible}
       inert={!visible}
-      className="fixed z-50"
+      className={reviewTop === undefined ? 'fixed z-50' : 'absolute z-50'}
       style={{
         zIndex: 9999,
-        left: anchor?.x ?? '50%',
-        top: anchor?.y ?? '100%',
+        left: reviewTop === undefined ? anchor?.x ?? '50%' : '50%',
+        top: reviewTop ?? anchor?.y ?? '100%',
         pointerEvents: visible ? 'auto' : 'none',
         transform: 'translate3d(-50%, 0, 0)',
       }}
@@ -101,7 +135,7 @@ export function ControlBar({ menuRef, settings, visible, anchor, disabled, loadi
                 : { duration: menuMotion.exitDuration, ease: 'easeIn' },
             }
         }
-        className={reviewing ? 'selection-segments review-segments w-max' : 'selection-segments w-max'}
+        className={reviewing ? 'selection-segments review-segments w-max' : 'selection-segments w-max rounded-2xl!'}
         style={{
           transformOrigin: anchor?.placement === 'above' ? '50% 100%' : '50% 0%',
           height: settings.shape.height,
@@ -117,19 +151,96 @@ export function ControlBar({ menuRef, settings, visible, anchor, disabled, loadi
               <LoaderCircle className="size-[18px] motion-safe:animate-spin" aria-hidden="true" />
               Zooming…
             </div>
-          ) : (
-            <SegmentedController<ZoomSegment>
+          ) : reviewing ? (
+            <SegmentedController<string>
               bordered={false}
-              label={reviewing ? 'Zoom result' : 'Semantic zoom strength'}
-              items={reviewing ? reviewSegments : zoomSegments}
+              label="Zoom result"
+              items={reviewSegments}
               value="idle"
               onChange={(value) => {
-                const stop = zoomSegments.find(({ id }) => id === value)
-                if (stop && 'operation' in stop) onZoom(stop.operation, stop.degree)
                 if (value === 'accept') review?.onAccept()
                 if (value === 'reject') review?.onReject()
               }}
             />
+          ) : (
+            <div className="flex h-full w-[min(18rem,calc(100vw-2rem))] flex-col justify-center gap-1 px-3" role="group" aria-label="Semantic zoom strength">
+              <div className="flex items-center justify-center">
+                <span className="text-xs font-semibold tabular-nums text-slate-800">{dragIndex === null ? hoveredLabel ?? focusedLabel ?? selectedLabel : dragLabel}</span>
+              </div>
+              <div className="flex h-7 items-center gap-1 rounded-lg bg-slate-100/80 px-2 text-slate-600">
+                <Microscope size={16} className="shrink-0" aria-hidden="true" />
+                <div
+                  className={`relative grid h-full min-w-0 flex-1 touch-none select-none ${dragIndex === null ? 'cursor-grab' : 'cursor-grabbing'}`}
+                  style={{ gridTemplateColumns: `repeat(${availableStops.length}, minmax(0, 1fr))` }}
+                  onPointerDown={(event) => {
+                    if (disabled || !event.isPrimary || event.button !== 0 || pointerId.current !== null) return
+                    event.preventDefault()
+                    event.currentTarget.setPointerCapture(event.pointerId)
+                    pointerId.current = event.pointerId
+                    setDragPosition(positionAtPointer(event))
+                  }}
+                  onPointerMove={(event) => {
+                    if (pointerId.current === event.pointerId) setDragPosition(positionAtPointer(event))
+                  }}
+                  onPointerUp={(event) => {
+                    if (pointerId.current !== event.pointerId) return
+                    const stop = availableStops[Math.floor(positionAtPointer(event))]
+                    clearDrag()
+                    setHoveredLabel(null)
+                    if (!disabled && stop) onZoom(stop[0], stop[1])
+                  }}
+                  onLostPointerCapture={clearDrag}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0.5 rounded-md bg-slate-300"
+                    style={{
+                      left: `${bandStart / availableStops.length * 100}%`,
+                      right: `${(1 - bandEnd / availableStops.length) * 100}%`,
+                    }}
+                  >
+                    <span
+                      className={`absolute top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-full bg-slate-500 ${notchPosition}`}
+                    />
+                  </span>
+                  {availableStops.map((stop) => {
+                    if (!stop) {
+                      return (
+                        <span key="neutral" role="img" aria-label="Neutral" />
+                      )
+                    }
+                    const [operation, degree, label] = stop
+                    const target = stops.find((stop) => stop.operation === operation && stop.degree === degree)?.target
+                    if (target === undefined) return null
+                    const action = operation === 'contract' ? 'Distill' : 'Extrapolate'
+                    const preview = `${action} to ${target} ${target === 1 ? 'word' : 'words'}`
+                    return (
+                      <div
+                        key={label}
+                        className="relative min-w-0"
+                        onMouseEnter={() => setHoveredLabel(preview)}
+                        onMouseLeave={() => setHoveredLabel(null)}
+                      >
+                        <button
+                          type="button"
+                          aria-label={`${label}, ${preview}`}
+                          onFocus={() => setFocusedLabel(preview)}
+                          onBlur={() => setFocusedLabel(null)}
+                          onClick={(event) => {
+                            if (event.detail !== 0) return
+                            setHoveredLabel(null)
+                            setFocusedLabel(null)
+                            onZoom(operation, degree)
+                          }}
+                          className="grid size-full cursor-inherit place-items-center rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-cyan-700"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+                <Telescope size={16} className="shrink-0" aria-hidden="true" />
+              </div>
+            </div>
           )}
         </fieldset>
       </motion.div>

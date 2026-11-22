@@ -1,4 +1,19 @@
 import OpenAI from 'openai'
+import { wordCount } from '@/app/lib/rewriteClient'
+import { zoomTargets } from '@/app/lib/zoomTargets'
+
+const guidance = {
+  expand: [
+    'Make a light expansion. Add a brief clarification while keeping the original scope and structure.',
+    'Develop the main ideas with additional explanation and relevant detail.',
+    'Substantially develop the main ideas. Add concrete explanations, examples, or implications supported by the passage. Avoid repetition and invented facts.',
+  ],
+  contract: [
+    'Make a light edit. Trim redundant words while retaining nearly all details and nuances.',
+    'Tighten the prose and combine overlapping points. Keep the main claims and important supporting details.',
+    'Produce a compact distillation. Keep the central message and essential qualifications. Drop secondary examples, repetition, and supporting detail.',
+  ],
+}
 
 export async function POST(req: Request) {
   try {
@@ -7,9 +22,10 @@ export async function POST(req: Request) {
     const body = await req.json()
     console.log('Request body:', body)
     
-    const { prompt, operation, degree = 2, excerpt, context } = body
+    const { prompt, operation, degree = 2, excerpt, context, boundaries } = body
+    const hasBoundaries = typeof boundaries?.before === 'string' && typeof boundaries?.after === 'string'
     
-    if (!prompt) {
+    if (typeof prompt !== 'string' || !prompt.trim()) {
       console.log('No prompt provided')
       return new Response('Missing prompt', { status: 400 })
     }
@@ -35,51 +51,43 @@ export async function POST(req: Request) {
     console.log('Using prompt:', prompt.substring(0, 100) + '...')
     console.log('Operation:', operation)
 
-    const targetPercent = degree === 1 ? 10 : degree === 2 ? 25 : 50
+    const sourceWords = wordCount(prompt)
+    const stop = zoomTargets(sourceWords).find((stop) => stop.operation === operation && stop.degree === degree)
+    if (!stop) return new Response('Zoom stop unavailable for this passage', { status: 400 })
+    const { target: targetWords, min: minWords, max: maxWords } = stop
 
-    const systemPrompt = excerpt
-      ? operation === 'expand'
-        ? `The user highlighted a passage inside a larger piece of writing. Expand only that highlighted passage with more detail and clarity, about ${targetPercent}% longer. Reply with only the expanded passage — no quotes, no explanation, and do not rewrite or repeat the surrounding text. Keep it as a single paragraph unless the original used line breaks.${context ? `\n\nFull text (context only):\n${context}\n\nHighlighted passage:\n${prompt}` : `\n\nPassage:\n${prompt}`}`
-        : `The user highlighted a passage inside a larger piece of writing. Distill only that highlighted passage to its core meaning, about ${targetPercent}% shorter. Reply with only the distilled passage — no quotes, no explanation, and do not rewrite or repeat the surrounding text. Keep it as a single paragraph unless the original used line breaks.${context ? `\n\nFull text (context only):\n${context}\n\nHighlighted passage:\n${prompt}` : `\n\nPassage:\n${prompt}`}`
-      : operation === 'expand'
-      ? `The user has provided text to expand. Rewrite it with more detail and clarity, targeting around ${targetPercent}% more words while preserving its meaning and voice. It must be longer than the original. Add paragraphs if needed for readability. Reply with only the expanded text, with no introduction, explanation, or quotes. Text: ${prompt}`
-      : `The user has provided text to distill. Rewrite it around ${targetPercent}% shorter while preserving its core meaning and voice. It must be shorter than the original. Combine short paragraphs where appropriate. Reply with only the distilled text, with no introduction, explanation, or quotes. Text: ${prompt}`
+    const instructions = [
+      `Rewrite only the passage. It contains ${sourceWords} words. Aim for exactly ${targetWords} words, within ${minWords}–${maxWords} words. Count words separated by whitespace and revise your draft to fit the budget before replying.`,
+      guidance[operation === 'expand' ? 'expand' : 'contract'][degree - 1],
+      'Preserve the core meaning and voice. Reply with only the rewritten passage, without a preamble, quotation marks around it, or a word-count report.',
+      hasBoundaries
+        ? 'The before and after fields are exact, unchanged text on either side of the selection. Read before + replacement + after as one continuous passage before answering. Make the replacement fit the existing sentence structure, capitalization, and punctuation at both joins. Continue a mid-sentence fragment as a fragment. Do not repeat neighboring words or punctuation or add a sentence ending if the sentence continues outside the selection. The editor preserves whitespace at the edges of the selected passage.'
+        : excerpt ? 'Use surrounding text only for context.' : '',
+      excerpt || hasBoundaries ? 'Keep the rewrite on one line if the selected passage, excluding edge whitespace, is on one line.' : '',
+    ].filter(Boolean).join('\n')
 
-    console.log('Calling OpenAI API...')
-
-    const response = await openai.responses.create({
-      model: 'gpt-6-luna',
-      reasoning: { effort: 'low' },
-      max_output_tokens: 4096,
-      input: systemPrompt,
-      stream: true,
-    })
-
-    console.log('API call successful, streaming response')
-    
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const event of response) {
-            if (event.type === 'response.output_text.delta') {
-              controller.enqueue(new TextEncoder().encode(event.delta))
-            }
-          }
-          controller.close()
-        } catch (error) {
-          console.error('Streaming error:', error)
-          controller.error(error)
-        }
-      },
-    })
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/plain',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    })
+    const input = hasBoundaries
+      ? { before: boundaries.before, passage: prompt, after: boundaries.after }
+      : { passage: prompt, ...(excerpt && context ? { surroundingText: context } : {}) }
+    let previousCount: number | undefined
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await openai.responses.create({
+        model: 'gpt-6-luna',
+        reasoning: { effort: 'low' },
+        max_output_tokens: 4096,
+        instructions: previousCount === undefined
+          ? instructions
+          : `${instructions}\nThe previous attempt returned ${previousCount} words and did not pass validation. Rewrite from the source and check the length before submitting.`,
+        input: JSON.stringify(input),
+      }, { signal: req.signal })
+      const candidate = response.output_text.trim()
+      const count = wordCount(candidate)
+      if (response.status === 'completed' && count >= minWords && count <= maxWords) {
+        return new Response(candidate, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' } })
+      }
+      previousCount = count
+    }
+    return new Response('The rewrite missed its target word count. Please try again.', { status: 422 })
   } catch (error) {
     console.error('API Error:', error)
     const message = error instanceof Error ? error.message : 'Unknown error'
