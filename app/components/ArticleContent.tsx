@@ -11,7 +11,6 @@ import { useBoxWidth } from '@/app/lib/useBoxWidth'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
-const EDITOR_HEIGHT = 'calc(100dvh - 96px - 32px)'
 const VIEWPORT_MARGIN = 12
 
 type ControlAnchor = {
@@ -358,9 +357,8 @@ export function ArticleContent(props: ZoomArticleProps) {
   return (
     <div
       ref={boxRef}
-      className="relative [overflow-anchor:none]"
+      className="document-editor relative [overflow-anchor:none]"
       style={{
-        height: EDITOR_HEIGHT,
         minHeight: reviewTop === undefined ? undefined : reviewTop + controlHeight,
       }}
     >
@@ -388,7 +386,7 @@ export function ArticleContent(props: ZoomArticleProps) {
           setContent(e.target.value)
           handleSelectionChange()
         }}
-        className={`h-full w-full resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
+        className={`block h-full w-full resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
           isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-foreground'
         }`}
         style={{

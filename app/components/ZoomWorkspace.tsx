@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { MorphingText } from '@/registry/magicui/morphing-text'
 import { ArticleContent } from '@/app/components/ArticleContent'
-import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
 import { wordCount } from '@/app/lib/rewriteClient'
 import type { ZoomOperation } from '@/app/types/zoom'
 import zoomerVersion from '@/zoomer-version.json'
@@ -15,14 +14,7 @@ const INITIAL_CONTENT =
 
 export function ZoomWorkspace() {
   const appearance = {
-    layout: {
-      contentWidth: 650,
-      horizontalPadding: 16,
-      verticalPadding: 48,
-    },
     heading: {
-      fontSize: 20,
-      weight: 700,
       motionDuration: 0.4,
       motionBlur: 4,
       motionDistance: 10,
@@ -86,22 +78,9 @@ export function ZoomWorkspace() {
   }
 
   return (
-    <main
-      className="min-h-screen flex flex-col items-center [overflow-anchor:none]"
-    >
-      <div
-        id="top"
-        className="w-full mx-auto [overflow-anchor:none]"
-        style={{
-          maxWidth: appearance.layout.contentWidth,
-          paddingInline: appearance.layout.horizontalPadding,
-          paddingBlock: appearance.layout.verticalPadding,
-        }}
-      >
-        <h1
-          className="relative m-0 mb-0 shrink-0 overflow-hidden text-[20px] font-bold text-left text-(--accent)"
-          style={{ height: LINE_HEIGHT, lineHeight: `${LINE_HEIGHT}px`, letterSpacing: '-0.01em', fontSize: appearance.heading.fontSize, fontWeight: appearance.heading.weight }}
-        >
+    <main className="document-workspace [overflow-anchor:none]">
+      <div id="top" className="document-layout mx-auto [overflow-anchor:none]">
+        <h1 className="document-status relative overflow-hidden">
           <MorphingText
             className="absolute inset-0 whitespace-nowrap"
             duration={appearance.heading.motionDuration}
@@ -111,14 +90,20 @@ export function ZoomWorkspace() {
             {getTitleContent()}
           </MorphingText>
         </h1>
-        <ArticleContent
-          initialContent={INITIAL_CONTENT}
-          onLoadingStateChange={handleLoadingStateChange}
-          onWordCountChange={setCurrentWordCount}
-          onContentManuallyEdited={() => setLastOperation(null)}
-          onSelectionChange={setHasSelection}
-          onTransitioningChange={setIsTransitioning}
-        />
+        <div className="document-page">
+          <ArticleContent
+            initialContent={INITIAL_CONTENT}
+            onLoadingStateChange={handleLoadingStateChange}
+            onWordCountChange={setCurrentWordCount}
+            onContentManuallyEdited={() => setLastOperation(null)}
+            onSelectionChange={setHasSelection}
+            onTransitioningChange={setIsTransitioning}
+          />
+        </div>
+        <footer className="document-footer">
+          {'"ZOOMER" BY '}
+          <a href="https://www.maximillian.nyc">MAXIMILLIAN PIRAS</a>
+        </footer>
       </div>
     </main>
   )
