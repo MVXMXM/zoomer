@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { useDialKit } from 'dialkit'
 import { MorphingText } from '@/registry/magicui/morphing-text'
 import { ArticleContent } from '@/app/components/ArticleContent'
 import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
@@ -9,24 +8,24 @@ import type { ZoomOperation } from '@/app/types/zoom'
 import zoomerVersion from '@/zoomer-version.json'
 
 export function ZoomWorkspace() {
-  const appearance = useDialKit('Workspace', {
+  const appearance = {
     layout: {
-      contentWidth: [650, 360, 1000, 10],
-      horizontalPadding: [16, 12, 64, 1],
-      verticalPadding: [48, 16, 120, 1],
+      contentWidth: 650,
+      horizontalPadding: 16,
+      verticalPadding: 48,
     },
     colors: {
       background: '#f8fafc',
       accent: '#06b6d4',
     },
     heading: {
-      fontSize: [20, 14, 28, 1],
-      weight: [700, 400, 900, 100],
-      motionDuration: [0.4, 0.1, 1.2, 0.05],
-      motionBlur: [4, 0, 12, 0.5],
-      motionDistance: [10, 0, 24, 1],
+      fontSize: 20,
+      weight: 700,
+      motionDuration: 0.4,
+      motionBlur: 4,
+      motionDistance: 10,
     },
-  })
+  }
   const [isLoading, setIsLoading] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)

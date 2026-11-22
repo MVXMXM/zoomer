@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@mvxmxm/maxos": "^0.1.0",
     "framer-motion": "^12.10.5",
     "lucide-react": "^0.562.0",
     "next": "^15.5.9",
@@ -22,7 +23,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "dialkit": "^2.1.0",
     "eslint": "^9",
     "eslint-config-next": "15.3.2",
     "motion": "^14.9.0",
