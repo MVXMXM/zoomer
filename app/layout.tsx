@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@mvxmxm/maxos/segmented-controller.css";
 import "./globals.css";
 
 export const metadata: Metadata = {

@@ -26,6 +26,58 @@ body {
   overflow-anchor: none;
 }
 
+.selection-segments {
+  overflow: hidden;
+  border-radius: 40px;
+  background: var(--background);
+  box-shadow: inset 0 0 0 1px var(--hairline, #e2e8f0), 0 4px 16px rgb(15 23 42 / 0.12);
+}
+
+.selection-segments .segmented-controller {
+  height: 100%;
+  padding: 5px;
+}
+
+.selection-segments .segmented-controller-button {
+  height: 100%;
+}
+
+.selection-segments .segmented-controller:not(:has(button[aria-pressed='true'])) .segmented-controller-indicator {
+  visibility: hidden;
+}
+
+/* Lucide icons also appear in maxOS's clipped copy of the active label. */
+.selection-segments :is(.segmented-controller-button, .segmented-controller-label)::after {
+  content: '';
+  order: -1;
+  flex: 0 0 18px;
+  height: 18px;
+  margin-inline-end: 8px;
+  background: currentColor;
+  mask: var(--segment-icon) center / contain no-repeat;
+}
+
+.selection-segments:not(.review-segments) :is(button.segmented-controller-button:nth-of-type(1), .segmented-controller-label:nth-child(1)) {
+  --segment-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M6%2018h8M3%2022h18M14%2022a7%207%200%201%200%200-14h-1M9%2014h2M9%2012a2%202%200%200%201-2-2V6h6v4a2%202%200%200%201-2%202ZM12%206V3a1%201%200%200%200-1-1H9a1%201%200%200%200-1%201v3'%2F%3E%3C%2Fsvg%3E");
+}
+
+.selection-segments:not(.review-segments) :is(button.segmented-controller-button:nth-of-type(2), .segmented-controller-label:nth-child(2)) {
+  --segment-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'm10.065%2012.493-6.18%201.318a.934.934%200%200%201-1.108-.702l-.537-2.15a1.07%201.07%200%200%201%20.691-1.265l13.504-4.44m-2.875%206.493%204.332-.924M16%2021l-3.105-6.21M16.485%205.94a2%202%200%200%201%201.455-2.425l1.09-.272a1%201%200%200%201%201.212.727l1.515%206.06a1%201%200%200%201-.727%201.213l-1.09.272a2%202%200%200%201-2.425-1.455zM6.158%208.633l1.114%204.456M8%2021l3.105-6.21'%2F%3E%3Ccircle%20cx%3D'12'%20cy%3D'13'%20r%3D'2'%2F%3E%3C%2Fsvg%3E");
+}
+
+.review-segments :is(button.segmented-controller-button:nth-of-type(1), .segmented-controller-label:nth-child(1)) {
+  --segment-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9%2014%204%209l5-5M4%209h10a6%206%200%200%201%200%2012h-3'%2F%3E%3C%2Fsvg%3E");
+}
+
+.review-segments :is(button.segmented-controller-button:nth-of-type(2), .segmented-controller-label:nth-child(2)) {
+  --segment-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'm20%206-11%2011-5-5'%2F%3E%3C%2Fsvg%3E");
+}
+
+.selection-segments .segmented-controller-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Loading text animation */
 .loading-text {
   color: #94a3b8;
@@ -66,17 +118,8 @@ body {
   to { opacity: 1; }
 }
 
-@keyframes review-dock-in {
-  from { opacity: 0; transform: translate(-50%, 10px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
-}
-
 .review-in {
   animation: review-in 240ms ease-out both;
-}
-
-.review-dock-in {
-  animation: review-dock-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -87,8 +130,7 @@ body {
     -webkit-text-fill-color: #737373;
   }
 
-  .review-in,
-  .review-dock-in {
+  .review-in {
     animation: none;
   }
 }

@@ -8,6 +8,24 @@ import type { ZoomOperation } from '@/app/types/zoom'
 import zoomerVersion from '@/zoomer-version.json'
 
 export function ZoomWorkspace() {
+  const appearance = {
+    layout: {
+      contentWidth: 650,
+      horizontalPadding: 16,
+      verticalPadding: 48,
+    },
+    colors: {
+      background: '#f8fafc',
+      accent: '#06b6d4',
+    },
+    heading: {
+      fontSize: 20,
+      weight: 700,
+      motionDuration: 0.4,
+      motionBlur: 4,
+      motionDistance: 10,
+    },
+  }
   const [isLoading, setIsLoading] = useState(false)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
@@ -52,7 +70,7 @@ export function ZoomWorkspace() {
       if (op === 'expand') return 'Zooming out...'
     }
     if (hasSelection) {
-      return 'Select a zoom direction below'
+      return 'Choose a zoom direction'
     }
     if (lastOperation) {
       return (
@@ -71,13 +89,29 @@ export function ZoomWorkspace() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center [overflow-anchor:none]">
-      <div id="top" className="w-full max-w-[650px] mx-auto px-4 py-12 [overflow-anchor:none]">
+    <main
+      className="min-h-screen flex flex-col items-center justify-center [overflow-anchor:none]"
+      style={{ backgroundColor: appearance.colors.background, '--workspace-accent': appearance.colors.accent } as React.CSSProperties}
+    >
+      <div
+        id="top"
+        className="w-full mx-auto [overflow-anchor:none]"
+        style={{
+          maxWidth: appearance.layout.contentWidth,
+          paddingInline: appearance.layout.horizontalPadding,
+          paddingBlock: appearance.layout.verticalPadding,
+        }}
+      >
         <h1
           className="relative m-0 mb-0 shrink-0 overflow-hidden text-[20px] font-bold text-left text-[#06b6d4]"
-          style={{ height: LINE_HEIGHT, lineHeight: `${LINE_HEIGHT}px`, letterSpacing: '-0.01em' }}
+          style={{ height: LINE_HEIGHT, lineHeight: `${LINE_HEIGHT}px`, letterSpacing: '-0.01em', fontSize: appearance.heading.fontSize, fontWeight: appearance.heading.weight, color: appearance.colors.accent }}
         >
-          <MorphingText className="absolute inset-0 whitespace-nowrap">
+          <MorphingText
+            className="absolute inset-0 whitespace-nowrap"
+            duration={appearance.heading.motionDuration}
+            blur={appearance.heading.motionBlur}
+            distance={appearance.heading.motionDistance}
+          >
             {getTitleContent()}
           </MorphingText>
         </h1>
