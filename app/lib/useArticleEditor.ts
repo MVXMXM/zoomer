@@ -31,17 +31,13 @@ export function useArticleEditor({
   initialContent,
   onLoadingStateChange,
   onWordCountChange,
-  onHasTextChange,
   onContentManuallyEdited,
-  onEngagementChange,
   onSelectionChange,
 }: ZoomArticleProps) {
   const [content, setContent] = useState(initialContent)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
-  const [hasText, setHasText] = useState(initialContent.trim().length > 0)
-  const [shouldExpand, setShouldExpand] = useState(initialContent.trim().length > 0)
   const [hasSelection, setHasSelection] = useState(false)
   const [hasPerformedFirstZoom, setHasPerformedFirstZoom] = useState(false)
   const [lastGeneratedContent, setLastGeneratedContent] = useState('')
@@ -64,29 +60,6 @@ export function useArticleEditor({
   }, [content, onWordCountChange])
 
   useEffect(() => {
-    if (isLoading) return
-    const hasContent = content.trim().length > 0
-    if (hasContent !== hasText) {
-      setHasText(hasContent)
-      onHasTextChange?.(hasContent)
-    }
-  }, [content, hasText, onHasTextChange, isLoading])
-
-  useEffect(() => {
-    if (isLoading) return
-    if (!hasText) {
-      setShouldExpand(false)
-      return
-    }
-    const timeoutId = setTimeout(() => setShouldExpand(true), 500)
-    return () => clearTimeout(timeoutId)
-  }, [content, hasText, isLoading])
-
-  useEffect(() => {
-    onEngagementChange?.(shouldExpand)
-  }, [shouldExpand, onEngagementChange])
-
-  useEffect(() => {
     onSelectionChange?.(hasSelection)
   }, [hasSelection, onSelectionChange])
 
@@ -97,21 +70,12 @@ export function useArticleEditor({
     }
   }, [content, lastGeneratedContent, isLoading, onContentManuallyEdited])
 
-  const autoResize = useCallback(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
-      textareaRef.current.style.overflow = 'hidden'
-    }
-  }, [])
-
   useEffect(() => {
-    if (isLoading || shouldExpand) return
-    autoResize()
-  }, [content, autoResize, isLoading, shouldExpand])
-
-  useEffect(() => {
-    textareaRef.current?.focus()
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const end = textarea.value.length
+    textarea.setSelectionRange(end, end)
+    textarea.focus({ preventScroll: true })
   }, [])
 
   const rememberSelection = useCallback(() => {
@@ -283,7 +247,6 @@ export function useArticleEditor({
     isLoading,
     error,
     activeButton,
-    shouldExpand,
     hasSelection,
     selectionWordCount,
     hasPerformedFirstZoom,

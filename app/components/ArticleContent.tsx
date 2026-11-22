@@ -11,7 +11,7 @@ import { useBoxWidth } from '@/app/lib/useBoxWidth'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
-const REST_HEIGHT = 'calc(100dvh - 96px - 32px)'
+const EDITOR_HEIGHT = 'calc(100dvh - 96px - 32px)'
 const VIEWPORT_MARGIN = 12
 
 type ControlAnchor = {
@@ -119,7 +119,6 @@ export function ArticleContent(props: ZoomArticleProps) {
     isLoading,
     error,
     activeButton,
-    shouldExpand,
     hasSelection,
     selectionWordCount,
     textareaRef,
@@ -361,9 +360,8 @@ export function ArticleContent(props: ZoomArticleProps) {
       ref={boxRef}
       className="relative [overflow-anchor:none]"
       style={{
-        height: shouldExpand ? REST_HEIGHT : '200px',
+        height: EDITOR_HEIGHT,
         minHeight: reviewTop === undefined ? undefined : reviewTop + controlHeight,
-        transition: overlayOpen || isLoading ? 'none' : 'height 1000ms cubic-bezier(0.4, 0, 0.2, 1)',
       }}
     >
       {overlayOpen && width > 0 && (
@@ -390,12 +388,11 @@ export function ArticleContent(props: ZoomArticleProps) {
           setContent(e.target.value)
           handleSelectionChange()
         }}
-        className={`w-full min-h-[200px] resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
+        className={`h-full w-full resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
           isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-slate-900'
         }`}
         style={{
           caretColor: 'var(--workspace-accent, #06b6d4)',
-          height: shouldExpand || overlayOpen ? '100%' : 'auto',
           overflow: 'hidden',
           letterSpacing: '-0.01em',
           whiteSpace: 'pre-wrap',
@@ -406,7 +403,6 @@ export function ArticleContent(props: ZoomArticleProps) {
           zIndex: 2,
         }}
         placeholder="Type or paste text to apply semantic zoom"
-        autoFocus
         disabled={isLoading || overlayOpen}
         onSelect={handleSelectionChange}
         onKeyUp={handleSelectionChange}
