@@ -51,7 +51,7 @@ function writeLockfileVersion(current, next) {
 function writeReadmeVersion(version) {
   const file = new URL('../README.md', import.meta.url);
   const text = readFileSync(file, 'utf8');
-  const updated = text.replace(/^# Zoomer v\d+\.\d+\.\d+/m, `# Zoomer v${version}`);
+  const updated = text.replace(/^# Zoomer \(v\d+\.\d+\.\d+\)/m, `# Zoomer (v${version})`);
   if (updated === text) {
     throw new Error('README version heading not found');
   }
