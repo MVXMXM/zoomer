@@ -1,17 +1,11 @@
-# Zoomer v0.1.7
+# Zoomer (v0.1.7)
 
 Semantic zoom for text — expand or contract content while preserving meaning using AI.
 
-## Features
+## Zoom Controls
 
-- **Extrapolate (zoom out `⌘+`)**: Add detail and clarity to your text
-- **Distill (zoom in `⌘-`)**: Simplify text to its core concepts
-
-## Setup
-
-Copy `.env.example` to `.env.local`, add your OpenAI API key, then run `npm run dev`.
-
-Zoomer streams rewrites from `gpt-6-luna` with low reasoning effort for lower latency.
+`(+) Zoom out` Extrapolate by adding exhaustive detail
+`(-) Zoom in` Distill to irreducible simplicity
 
 ## References
 
