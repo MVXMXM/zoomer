@@ -125,25 +125,21 @@ body {
   }
 }
 
-:is(.selection-segments, .document-zoom-control) .segmented-controller {
+.selection-segments .segmented-controller {
   height: 100%;
   padding: 5px;
 }
 
-.document-zoom-control .segmented-controller {
-  justify-content: center;
-}
-
-:is(.selection-segments, .document-zoom-control) .segmented-controller-button {
+.selection-segments .segmented-controller-button {
   height: 100%;
 }
 
-:is(.selection-segments, .document-zoom-control) .segmented-controller:not(:has(button[aria-pressed='true'])) .segmented-controller-indicator {
+.selection-segments .segmented-controller:not(:has(button[aria-pressed='true'])) .segmented-controller-indicator {
   visibility: hidden;
 }
 
 /* Lucide icons also appear in maxOS's clipped copy of the active label. */
-:is(.selection-segments, .document-zoom-control) :is(.segmented-controller-button, .segmented-controller-label)::after {
+.selection-segments :is(.segmented-controller-button, .segmented-controller-label)::after {
   content: var(--segment-icon-content, none);
   order: -1;
   flex: 0 0 18px;

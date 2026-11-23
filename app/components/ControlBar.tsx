@@ -334,7 +334,7 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
         />
       )}
       <span className="zoom-slider-readout zoom-slider-value">
-        <WordCountComparison sourceWords={wordCount === sourceWords ? previousWords ?? sourceWords : sourceWords} wordCount={wordCount} />
+        <WordCountComparison sourceWords={sourceWords} wordCount={wordCount} />
       </span>
     </>
   )

@@ -8,67 +8,28 @@ import {
   wordCount,
   type RewriteRange,
 } from '@/app/lib/rewriteClient'
-import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
+import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const HISTORY_CAP = 20
-
-type Headline = {
-  type: ZoomOperation
-  beforeCount: number
-  afterCount: number
-} | null
-
-type HistoryEntry = {
-  content: string
-  headline: Headline
-}
 
 function isAbortError(err: unknown) {
   return err instanceof Error && err.name === 'AbortError'
 }
 
-export function useArticleEditor({
-  initialContent,
-  onLoadingStateChange,
-  onWordCountChange,
-  onContentManuallyEdited,
-  onSelectionChange,
-}: ZoomArticleProps) {
+export function useArticleEditor(initialContent: string) {
   const [content, setContent] = useState(initialContent)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
   const [hasSelection, setHasSelection] = useState(false)
-  const [hasPerformedFirstZoom, setHasPerformedFirstZoom] = useState(false)
-  const [lastGeneratedContent, setLastGeneratedContent] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const selectionRef = useRef<RewriteRange>({ start: 0, end: 0 })
   const [selectionWordCount, setSelectionWordCount] = useState(0)
   const contentRef = useRef(content)
-  const pastRef = useRef<HistoryEntry[]>([])
-  const futureRef = useRef<HistoryEntry[]>([])
-  const headlineRef = useRef<Headline>(null)
+  const pastRef = useRef<string[]>([])
+  const futureRef = useRef<string[]>([])
   const abortRef = useRef<AbortController | null>(null)
   contentRef.current = content
-
-  useEffect(() => {
-    onLoadingStateChange?.(isLoading, activeButton)
-  }, [isLoading, activeButton, onLoadingStateChange])
-
-  useEffect(() => {
-    onWordCountChange?.(wordCount(content))
-  }, [content, onWordCountChange])
-
-  useEffect(() => {
-    onSelectionChange?.(hasSelection)
-  }, [hasSelection, onSelectionChange])
-
-  useEffect(() => {
-    if (!isLoading && lastGeneratedContent && content !== lastGeneratedContent && content.trim().length > 0) {
-      onContentManuallyEdited?.()
-      setLastGeneratedContent('')
-    }
-  }, [content, lastGeneratedContent, isLoading, onContentManuallyEdited])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -87,32 +48,11 @@ export function useArticleEditor({
     setSelectionWordCount(range ? wordCount(el.value.slice(range.start, range.end)) : 0)
   }, [])
 
-  const snapshot = useCallback(
-    (): HistoryEntry => ({
-      content: contentRef.current,
-      headline: headlineRef.current,
-    }),
-    [],
-  )
-
-  const applyEntry = useCallback(
-    (entry: HistoryEntry) => {
-      setContent(entry.content)
-      setHasSelection(false)
-      selectionRef.current = { start: 0, end: 0 }
-      setLastGeneratedContent(entry.headline ? entry.content : '')
-      headlineRef.current = entry.headline
-      if (entry.headline) {
-        onLoadingStateChange?.(false, entry.headline.type, {
-          beforeCount: entry.headline.beforeCount,
-          afterCount: entry.headline.afterCount,
-        })
-      } else {
-        onContentManuallyEdited?.()
-      }
-    },
-    [onLoadingStateChange, onContentManuallyEdited],
-  )
+  const restoreContent = useCallback((text: string) => {
+    setContent(text)
+    setHasSelection(false)
+    selectionRef.current = { start: 0, end: 0 }
+  }, [])
 
   const abortRewrite = useCallback(() => {
     if (!abortRef.current) return false
@@ -122,23 +62,23 @@ export function useArticleEditor({
 
   const undo = useCallback((): { from: string; to: string } | null => {
     const prev = pastRef.current[pastRef.current.length - 1]
-    if (!prev) return null
+    if (prev === undefined) return null
     const from = contentRef.current
-    futureRef.current = [...futureRef.current, snapshot()]
+    futureRef.current = [...futureRef.current, from]
     pastRef.current = pastRef.current.slice(0, -1)
-    applyEntry(prev)
-    return { from, to: prev.content }
-  }, [applyEntry, snapshot])
+    restoreContent(prev)
+    return { from, to: prev }
+  }, [restoreContent])
 
   const redo = useCallback((): { from: string; to: string } | null => {
     const next = futureRef.current[futureRef.current.length - 1]
-    if (!next) return null
+    if (next === undefined) return null
     const from = contentRef.current
-    pastRef.current = [...pastRef.current, snapshot()].slice(-HISTORY_CAP)
+    pastRef.current = [...pastRef.current, from].slice(-HISTORY_CAP)
     futureRef.current = futureRef.current.slice(0, -1)
-    applyEntry(next)
-    return { from, to: next.content }
-  }, [applyEntry, snapshot])
+    restoreContent(next)
+    return { from, to: next }
+  }, [restoreContent])
 
   const handleRewrite = useCallback(
     async (
@@ -146,7 +86,6 @@ export function useArticleEditor({
       degree: ZoomDegree,
       hooks?: {
         onStart?: (oldText: string, range: RewriteRange | null) => void
-        onUpdate?: (text: string) => void
         onEnd?: (text: string) => void
         onError?: () => void
       },
@@ -179,15 +118,12 @@ export function useArticleEditor({
       }
       const excerpt = content.slice(range.start, range.end)
 
-      const beforeCount = wordCount(content)
       const oldText = content
-      const priorHeadline = headlineRef.current
       const controller = new AbortController()
       abortRef.current = controller
       setIsLoading(true)
       setError(null)
       setActiveButton(operation)
-      setHasPerformedFirstZoom(true)
       setHasSelection(false)
       selectionRef.current = { start: 0, end: 0 }
       textareaRef.current?.blur()
@@ -195,14 +131,13 @@ export function useArticleEditor({
 
       try {
         const result = await streamRewrite(
-          excerpt ?? oldText,
+          excerpt,
           operation,
           degree,
           (chunk) => {
             if (controller.signal.aborted) return
             const next = stitchRewrite(oldText, range, chunk)
             setContent(next)
-            hooks?.onUpdate?.(next)
           },
           {
             boundaries: wholeDocument ? undefined : { before: oldText.slice(0, range.start), after: oldText.slice(range.end) },
@@ -218,14 +153,8 @@ export function useArticleEditor({
         }
         if (!result.trim()) throw new Error('Empty rewrite')
         const next = stitchRewrite(oldText, range, result)
-        pastRef.current = [...pastRef.current, { content: oldText, headline: priorHeadline }].slice(
-          -HISTORY_CAP,
-        )
+        pastRef.current = [...pastRef.current, oldText].slice(-HISTORY_CAP)
         futureRef.current = []
-        const afterCount = wordCount(next)
-        headlineRef.current = { type: operation, beforeCount, afterCount }
-        onLoadingStateChange?.(false, operation, { beforeCount, afterCount })
-        setLastGeneratedContent(next)
         setContent(next)
         hooks?.onEnd?.(next)
       } catch (err) {
@@ -241,7 +170,7 @@ export function useArticleEditor({
         setActiveButton(null)
       }
     },
-    [content, onLoadingStateChange],
+    [content],
   )
 
   return {
@@ -252,7 +181,6 @@ export function useArticleEditor({
     activeButton,
     hasSelection,
     selectionWordCount,
-    hasPerformedFirstZoom,
     textareaRef,
     rememberSelection,
     handleRewrite,

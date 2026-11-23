@@ -9,7 +9,7 @@ import { WordBlurOverlay, type BlurPhase } from '@/app/components/WordBlurOverla
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
 import { wordCount, type RewriteRange } from '@/app/lib/rewriteClient'
-import type { ZoomArticleProps, ZoomDegree, ZoomOperation } from '@/app/types/zoom'
+import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const VIEWPORT_MARGIN = 12
 
@@ -108,10 +108,9 @@ function getControlAnchor(textarea: HTMLTextAreaElement, width: number, height: 
 
 type ZoomPhase = 'idle' | BlurPhase
 
-export function ArticleContent(props: ZoomArticleProps) {
+export function ArticleContent({ initialContent }: { initialContent: string }) {
   const { height: controlHeight, selectionGap } = SELECTION_MENU_SETTINGS.shape
   const controlMenuRef = useRef<HTMLDivElement>(null)
-  const { onTransitioningChange } = props
   const {
     content,
     setContent,
@@ -126,7 +125,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     abortRewrite,
     undo,
     redo,
-  } = useArticleEditor(props)
+  } = useArticleEditor(initialContent)
   const boxRef = useRef<HTMLDivElement>(null)
   const width = useBoxWidth(textareaRef)
   const reviewScrollRef = useRef<HTMLDivElement>(null)
@@ -204,12 +203,6 @@ export function ArticleContent(props: ZoomArticleProps) {
     }
   }, [hasSelection, overlayOpen, updateControlAnchor])
 
-  useEffect(() => {
-    const showingResult =
-      historyMorph || zoomPhase === 'review' || zoomPhase === 'accept' || zoomPhase === 'reject'
-    onTransitioningChange?.(showingResult ? false : overlayOpen || isLoading)
-  }, [overlayOpen, isLoading, historyMorph, zoomPhase, onTransitioningChange])
-
   const onReady = useCallback(() => {
     setOverlayReady(true)
   }, [])
@@ -241,8 +234,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     if (phaseRef.current !== 'arrive') return
     phaseRef.current = 'review'
     setZoomPhase('review')
-    onTransitioningChange?.(false)
-  }, [onTransitioningChange])
+  }, [])
 
   const acceptReview = useCallback(() => {
     const phase = phaseRef.current
@@ -270,8 +262,7 @@ export function ArticleContent(props: ZoomArticleProps) {
     setHistoryMorph(true)
     setMorphKey((key) => key + 1)
     setOverlayOpen(true)
-    onTransitioningChange?.(false)
-  }, [onTransitioningChange])
+  }, [])
 
   const start = useCallback((operation: ZoomOperation, degree: ZoomDegree = 2, targetWords?: number, wholeDocument = false) => {
     void handleRewrite(operation, degree, {
@@ -294,7 +285,6 @@ export function ArticleContent(props: ZoomArticleProps) {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
           phaseRef.current = 'review'
           setZoomPhase('review')
-          onTransitioningChange?.(false)
         } else {
           phaseRef.current = 'arrive'
           setZoomPhase('arrive')
@@ -302,7 +292,7 @@ export function ArticleContent(props: ZoomArticleProps) {
       },
       onError: onSettled,
     }, targetWords, wholeDocument)
-  }, [handleRewrite, onSettled, onTransitioningChange])
+  }, [handleRewrite, onSettled])
 
   // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
   useEffect(() => {
