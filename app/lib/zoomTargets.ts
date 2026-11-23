@@ -1,5 +1,7 @@
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
+export const MAX_EXACT_ZOOM_WORDS = 100
+
 const degrees = [1, 2, 3] as const
 // Each step quadruples the requested change before rounding and length limits.
 const strengthMultiplier = { 1: 1, 2: 4, 3: 16 }

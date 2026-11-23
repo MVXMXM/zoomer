@@ -150,6 +150,8 @@ export function useArticleEditor({
         onEnd?: (text: string) => void
         onError?: () => void
       },
+      targetWords?: number,
+      wholeDocument = false,
     ) => {
       if (!content.trim()) {
         setError(`Please enter some text to ${operation}.`)
@@ -168,7 +170,7 @@ export function useArticleEditor({
         selectionRef.current.start,
         selectionRef.current.end,
       )
-      const range = live ?? remembered
+      const range = wholeDocument ? { start: 0, end: content.length } : live ?? remembered
       if (!range) {
         setHasSelection(false)
         setError(`Select some text to ${operation}.`)
@@ -203,8 +205,9 @@ export function useArticleEditor({
             hooks?.onUpdate?.(next)
           },
           {
-            boundaries: { before: oldText.slice(0, range.start), after: oldText.slice(range.end) },
+            boundaries: wholeDocument ? undefined : { before: oldText.slice(0, range.start), after: oldText.slice(range.end) },
             signal: controller.signal,
+            targetWords,
           },
         )
         if (abortRef.current === controller) abortRef.current = null

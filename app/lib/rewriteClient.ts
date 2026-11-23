@@ -38,7 +38,7 @@ export async function streamRewrite(
   operation: ZoomOperation,
   degree: ZoomDegree,
   onUpdate: (full: string) => void,
-  options?: { boundaries?: { before: string; after: string }; signal?: AbortSignal },
+  options?: { boundaries?: { before: string; after: string }; signal?: AbortSignal; targetWords?: number },
 ): Promise<string> {
   const response = await fetch('/api/rewrite', {
     method: 'POST',
@@ -47,6 +47,7 @@ export async function streamRewrite(
       prompt: text,
       operation,
       degree,
+      targetWords: options?.targetWords,
       excerpt: Boolean(options?.boundaries),
       boundaries: options?.boundaries,
     }),
