@@ -1,5 +1,7 @@
 # Zoomer (v0.1.8)
 
+![Zoomer wordmark between a microscope and a telescope, above a zoom scale](app/opengraph-image.png)
+
 Semantic zoom for text — expand or contract content while preserving meaning using AI.
 
 ## Zoom Controls
