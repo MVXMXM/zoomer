@@ -94,6 +94,8 @@ function getMeasureRoot(): HTMLDivElement {
     position: 'absolute',
     left: '0',
     top: '0',
+    height: '0',
+    overflow: 'hidden',
     margin: '0',
     padding: '0',
     border: '0',

@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { wordCount } from '@/app/lib/rewriteClient'
-import { zoomTargets } from '@/app/lib/zoomTargets'
+import { MAX_EXACT_ZOOM_WORDS, zoomTargets } from '@/app/lib/zoomTargets'
 
 const guidance = {
   expand: [
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     console.log('Request body:', body)
     
-    const { prompt, operation, degree = 2, excerpt, context, boundaries } = body
+    const { prompt, operation, degree = 2, targetWords: exactTarget, excerpt, context, boundaries } = body
     const hasBoundaries = typeof boundaries?.before === 'string' && typeof boundaries?.after === 'string'
     
     if (typeof prompt !== 'string' || !prompt.trim()) {
@@ -39,6 +39,22 @@ export async function POST(req: Request) {
       return new Response('Invalid degree. Must be 1, 2, or 3', { status: 400 })
     }
 
+    const sourceWords = wordCount(prompt)
+    const exact = exactTarget !== undefined
+    if (exact && (
+      sourceWords > MAX_EXACT_ZOOM_WORDS ||
+      typeof exactTarget !== 'number' || !Number.isInteger(exactTarget) ||
+      exactTarget < 1 || exactTarget > MAX_EXACT_ZOOM_WORDS ||
+      (operation === 'expand' ? exactTarget <= sourceWords : exactTarget >= sourceWords)
+    )) {
+      return new Response('Exact targets must be integers from 1 to 100 and match the zoom direction for a passage of at most 100 words.', { status: 400 })
+    }
+    const stop = exact
+      ? { target: exactTarget, min: exactTarget, max: exactTarget }
+      : zoomTargets(sourceWords).find((stop) => stop.operation === operation && stop.degree === degree)
+    if (!stop) return new Response('Zoom stop unavailable for this passage', { status: 400 })
+    const { target: targetWords, min: minWords, max: maxWords } = stop
+
     if (!process.env.OPENAI_API_KEY) {
       console.error('Missing OPENAI_API_KEY')
       return new Response('API key not configured', { status: 500 })
@@ -51,14 +67,9 @@ export async function POST(req: Request) {
     console.log('Using prompt:', prompt.substring(0, 100) + '...')
     console.log('Operation:', operation)
 
-    const sourceWords = wordCount(prompt)
-    const stop = zoomTargets(sourceWords).find((stop) => stop.operation === operation && stop.degree === degree)
-    if (!stop) return new Response('Zoom stop unavailable for this passage', { status: 400 })
-    const { target: targetWords, min: minWords, max: maxWords } = stop
-
     const instructions = [
-      `Rewrite only the passage. It contains ${sourceWords} words. Aim for exactly ${targetWords} words, within ${minWords}–${maxWords} words. Count words separated by whitespace and revise your draft to fit the budget before replying.`,
-      guidance[operation === 'expand' ? 'expand' : 'contract'][degree - 1],
+      `Rewrite only the passage. It contains ${sourceWords} words. ${exact ? `Return exactly ${targetWords} words.` : `Aim for exactly ${targetWords} words, within ${minWords}–${maxWords} words.`} Count words separated by whitespace and revise your draft to fit the budget before replying.`,
+      exact ? '' : guidance[operation === 'expand' ? 'expand' : 'contract'][degree - 1],
       'Preserve the core meaning and voice. Reply with only the rewritten passage, without a preamble, quotation marks around it, or a word-count report.',
       hasBoundaries
         ? 'The before and after fields are exact, unchanged text on either side of the selection. Read before + replacement + after as one continuous passage before answering. Make the replacement fit the existing sentence structure, capitalization, and punctuation at both joins. Continue a mid-sentence fragment as a fragment. Do not repeat neighboring words or punctuation or add a sentence ending if the sentence continues outside the selection. The editor preserves whitespace at the edges of the selected passage.'

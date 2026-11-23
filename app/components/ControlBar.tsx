@@ -1,28 +1,32 @@
 'use client'
 
-import { SegmentedController } from '@mvxmxm/maxos'
+import { SegmentedController, SliderScale } from '@mvxmxm/maxos'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { PointerEvent } from 'react'
-import { LoaderCircle, Microscope, Telescope } from 'lucide-react'
+import type { CSSProperties, PointerEvent } from 'react'
+import { Microscope, Telescope } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import type { SelectionMenuSettings } from '@/app/lib/selectionMenuSettings'
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
-import { zoomTargets } from '@/app/lib/zoomTargets'
+import { MAX_EXACT_ZOOM_WORDS, zoomTargets } from '@/app/lib/zoomTargets'
+import { AnimatedWordCount } from './AnimatedWordCount'
 
 type ControlBarProps = {
   sourceWords: number
+  previousWords?: number
   reviewTop?: number
-  menuRef: React.Ref<HTMLDivElement>
+  menuRef?: React.Ref<HTMLDivElement>
+  inline?: boolean
+  scaleLoadingOperation?: ZoomOperation | null
+  scaleReviewOperation?: ZoomOperation | null
   settings: SelectionMenuSettings
   visible: boolean
-  anchor: {
+  anchor?: {
     x: number
     y: number
     placement: 'above' | 'below'
   } | null
   disabled: boolean
-  loading: boolean
-  onZoom: (operation: ZoomOperation, degree: ZoomDegree) => void
+  onZoom: (operation: ZoomOperation, degree?: ZoomDegree, targetWords?: number) => void
   review?: { onAccept: () => void; onReject: () => void }
 }
 
@@ -41,33 +45,313 @@ const zoomStops = [
   ['expand', 3, 'Strong extrapolation'],
 ] as const
 
-export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible, anchor, disabled, loading, onZoom, review }: ControlBarProps) {
+function WordCountComparison({ sourceWords, wordCount }: { sourceWords: number; wordCount: number }) {
+  const originalCount = `${sourceWords} ${sourceWords === 1 ? 'word' : 'words'}`
+  const previewing = wordCount !== sourceWords
+  const [lastOriginalCount, setLastOriginalCount] = useState(originalCount)
+  if (previewing && lastOriginalCount !== originalCount) setLastOriginalCount(originalCount)
+  return (
+    <span className="zoom-count-comparison" data-previewing={previewing || undefined}>
+      <span className="zoom-slider-original" aria-hidden={!previewing} style={{ width: previewing ? `${originalCount.length + 1}ch` : undefined }}>
+        <del>{lastOriginalCount}</del>
+      </span>
+      <span>
+        <AnimatedWordCount count={wordCount} />
+        {' '}{wordCount === 1 ? 'word' : 'words'}
+      </span>
+    </span>
+  )
+}
+
+function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previousWords, disabled, loadingOperation, reviewOperation, onZoom }: {
+  stops: ReturnType<typeof zoomTargets>
+  neutralIndex: number
+  sourceWords: number
+  previousWords?: number
+  disabled: boolean
+  loadingOperation?: ZoomOperation | null
+  reviewOperation?: ZoomOperation | null
+  onZoom: ControlBarProps['onZoom']
+}) {
+  const tickWidth = 16 // SliderScale's fixed tick width.
+  const exact = sourceWords > 0 && sourceWords <= MAX_EXACT_ZOOM_WORDS
+  const neutralIndex = exact ? sourceWords - 1 : presetNeutralIndex
+  const lastIndex = exact ? MAX_EXACT_ZOOM_WORDS - 1 : stops.length
+  const ticksPerStop = exact ? 1 : 2
+  const lastTick = lastIndex * ticksPerStop
+  const initialTick = neutralIndex * ticksPerStop
+  const [tick, setTick] = useState(initialTick)
+  const loading = Boolean(loadingOperation)
+  const [previous, setPrevious] = useState({ sourceWords, loading })
+  if (previous.sourceWords !== sourceWords || previous.loading !== loading) {
+    setPrevious({ sourceWords, loading })
+    if (previous.sourceWords !== sourceWords || !loading) setTick(initialTick)
+  }
+  const scaleRef = useRef<HTMLDivElement>(null)
+  const loadingLabelRef = useRef<HTMLDivElement>(null)
+  const drag = useRef<{ ruler: HTMLElement; pointerId: number; x: number; scrollLeft: number } | null>(null)
+  const index = Math.round(tick / ticksPerStop)
+  const previewTick = index * ticksPerStop
+
+  useLayoutEffect(() => {
+    const scale = scaleRef.current
+    const label = loadingLabelRef.current
+    if (!loadingOperation || !scale || !label) return
+    const align = () => {
+      scale.style.setProperty('--zoom-scale-loading-width', `${label.getBoundingClientRect().width}px`)
+    }
+    align()
+    const observer = new ResizeObserver(align)
+    observer.observe(label)
+    return () => observer.disconnect()
+  }, [loadingOperation])
+
+  useLayoutEffect(() => {
+    const first = Math.min(initialTick, previewTick)
+    const last = Math.max(initialTick, previewTick)
+    scaleRef.current?.querySelectorAll('.maxos-slider-scale-tick').forEach((tick, position) => {
+      tick.toggleAttribute('data-zoom-traversed', position >= first && position <= last && position !== initialTick)
+    })
+  }, [initialTick, previewTick])
+
+  const stopAt = (position: number) => position === neutralIndex
+    ? undefined
+    : stops[position < neutralIndex ? position : position - 1]
+  const countAt = (position: number) => exact ? position + 1 : stopAt(position)?.target ?? sourceWords
+  const wordCount = countAt(index)
+  const direction = loadingOperation ?? reviewOperation ?? (index < neutralIndex ? 'contract' : index > neutralIndex ? 'expand' : null)
+  const reduceMotion = useReducedMotion()
+  const fadeTransition = { duration: reduceMotion ? 0 : 0.22, ease: 'easeOut' } as const
+  const apply = (position: number) => {
+    if (disabled || position === neutralIndex) return
+    if (exact) {
+      onZoom(position < neutralIndex ? 'contract' : 'expand', undefined, countAt(position))
+      return
+    }
+    const target = stopAt(position)
+    if (target) onZoom(target.operation, target.degree)
+  }
+  const clearDrag = (pointerId: number) => {
+    const gesture = drag.current
+    if (gesture?.pointerId !== pointerId) return
+    drag.current = null
+    delete gesture.ruler.dataset.dragging
+  }
+
+  return (
+    <div
+      ref={scaleRef}
+      className="zoom-scale"
+      data-loading={loadingOperation || undefined}
+      data-reviewing={reviewOperation || undefined}
+      data-preset-stops={!exact || undefined}
+      onPointerDownCapture={(event) => {
+        if (!event.isPrimary || event.button !== 0 || !(event.target instanceof Element)) return
+        const ruler = event.target.closest<HTMLElement>('[role="slider"]')
+        if (!ruler) return
+        event.stopPropagation()
+        ruler.setPointerCapture(event.pointerId)
+        drag.current = { ruler, pointerId: event.pointerId, x: event.clientX, scrollLeft: ruler.scrollLeft }
+      }}
+      onPointerMoveCapture={(event) => {
+        const gesture = drag.current
+        if (gesture?.pointerId !== event.pointerId) return
+        event.stopPropagation()
+        const delta = gesture.x - event.clientX
+        const distance = Math.abs(delta)
+        if (distance < 1 && !('dragging' in gesture.ruler.dataset)) return
+        const { ruler, scrollLeft, x } = gesture
+        const bounds = ruler.getBoundingClientRect()
+        const travel = delta < 0 ? bounds.right - x : x - bounds.left
+        const progress = Math.min(1, distance / Math.max(1, travel))
+        const endScroll = delta < 0 ? 0 : lastTick * tickWidth
+        ruler.dataset.dragging = ''
+        ruler.scrollLeft = scrollLeft + (endScroll - scrollLeft) * progress
+      }}
+      onPointerUpCapture={(event) => {
+        const gesture = drag.current
+        if (gesture?.pointerId !== event.pointerId) return
+        event.stopPropagation()
+        const { ruler } = gesture
+        const dragged = 'dragging' in ruler.dataset
+        const bounds = ruler.getBoundingClientRect()
+        const offset = dragged ? 0 : event.clientX - (bounds.left + bounds.width / 2)
+        const target = Math.max(0, Math.min(lastIndex, Math.round((ruler.scrollLeft + offset) / (tickWidth * ticksPerStop))))
+        clearDrag(event.pointerId)
+        if (dragged) apply(target)
+        else setTick(target * ticksPerStop)
+      }}
+      onPointerCancel={(event) => { clearDrag(event.pointerId) }}
+      onLostPointerCapture={(event) => { clearDrag(event.pointerId) }}
+      onKeyDownCapture={(event) => {
+        if (!(event.target instanceof HTMLElement) || event.target.role !== 'slider') return
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          apply(index)
+          return
+        }
+        const direction = event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1
+          : event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 1 : 0
+        if (!direction) return
+        event.preventDefault()
+        event.stopPropagation()
+        setTick(Math.max(0, Math.min(lastTick, (index + direction) * ticksPerStop)))
+      }}
+    >
+      <motion.div
+        className="zoom-scale-ruler-content"
+        inert={disabled}
+        initial={false}
+        animate={{ opacity: loadingOperation || reviewOperation ? 0 : 1 }}
+        transition={fadeTransition}
+      >
+        <SliderScale
+          key={sourceWords}
+          label="Semantic zoom target in words"
+          count={lastTick + 1}
+          value={tick}
+          onChange={setTick}
+          tickLabel={(position) => {
+            if (exact) {
+              const count = countAt(position)
+              return count === 1 || count % 5 === 0 ? String(count) : undefined
+            }
+            if (position % ticksPerStop !== 0) return undefined
+            return String(countAt(position / ticksPerStop))
+          }}
+          formatValue={(position) => {
+            const count = countAt(Math.round(position / ticksPerStop))
+            return `${count} ${count === 1 ? 'word' : 'words'}`
+          }}
+        />
+      </motion.div>
+      <motion.div
+        className="zoom-scale-headline"
+        inert={disabled}
+        initial={false}
+        animate={{ opacity: loadingOperation ? 0 : 1 }}
+        transition={fadeTransition}
+      >
+        <button type="button" className="zoom-slider-readout" onClick={() => apply(index)} disabled={index === neutralIndex}>
+          <WordCountComparison sourceWords={index === neutralIndex ? previousWords ?? sourceWords : sourceWords} wordCount={wordCount} />
+        </button>
+      </motion.div>
+      <span
+        className="zoom-scale-icon zoom-scale-icon--start"
+        data-active={direction === 'contract' || undefined}
+        data-inactive={!!reviewOperation || direction === 'expand' || undefined}
+        aria-hidden="true"
+      >
+        <Microscope size={24} />
+      </span>
+      {(exact || neutralIndex < lastIndex) && (
+        <span
+          className="zoom-scale-icon zoom-scale-icon--end"
+          data-active={direction === 'expand' || undefined}
+          data-inactive={!!reviewOperation || direction === 'contract' || undefined}
+          aria-hidden="true"
+        >
+          <Telescope size={24} />
+        </span>
+      )}
+      {loadingOperation && (
+        <div ref={loadingLabelRef} role="status" className="zoom-scale-loading zoom-slider-readout">
+          <span><span>{loadingOperation === 'contract' ? 'Zooming in' : 'Zooming out'}</span></span>
+        </div>
+      )}
+      {reviewOperation && previousWords !== undefined && (
+        <span role="status" className="sr-only">
+          Document word count changed from {previousWords} to {wordCount}.
+        </span>
+      )}
+    </div>
+  )
+}
+
+function updateGeneralNotch(slider: HTMLDivElement | null) {
+  const notch = slider?.querySelector('.zoom-slider-notch')
+  const fill = notch?.parentElement
+  const content = slider?.querySelector('.zoom-slider-content')
+  if (!notch || !fill || !content) return
+
+  const bounds = notch.getBoundingClientRect()
+  const hasClearance = fill.clientWidth >= notch.clientWidth + 16
+  const overlapsContent = Array.from(content.children).some((element) => {
+    const item = element.getBoundingClientRect()
+    return item.width > 0 && bounds.right + 4 > item.left && bounds.left - 4 < item.right
+  })
+  notch.toggleAttribute('data-overlapping', !hasClearance || overlapsContent)
+}
+
+export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inline, scaleLoadingOperation, scaleReviewOperation, settings, visible, anchor, disabled, onZoom, review }: ControlBarProps) {
   const stops = zoomTargets(sourceWords)
   const availableStops = zoomStops.filter((stop) =>
     !stop || stops.some(({ operation, degree }) => operation === stop[0] && degree === stop[1]),
   )
   const neutralIndex = availableStops.indexOf(null)
+  const exact = sourceWords > 0 && sourceWords <= MAX_EXACT_ZOOM_WORDS
+  const generalStopCount = exact ? MAX_EXACT_ZOOM_WORDS : availableStops.length
+  const generalNeutralIndex = exact ? sourceWords - 1 : neutralIndex
+  const [keyboardTarget, setKeyboardTarget] = useState<number | null>(null)
   const [dragPosition, setDragPosition] = useState<number | null>(null)
   const dragIndex = dragPosition === null ? null : Math.floor(dragPosition)
-  const bandPosition = dragPosition ?? neutralIndex + 0.5
-  const bandStart = Math.max(0, Math.min(neutralIndex, bandPosition - 0.5))
-  const bandEnd = Math.min(availableStops.length, Math.max(neutralIndex + 1, bandPosition + 0.5))
-  const notchPosition = dragIndex === null || dragIndex === neutralIndex
-    ? 'left-1/2 -translate-x-1/2'
-    : dragIndex < neutralIndex ? 'left-1.5' : 'right-1.5'
+  const exactIndex = Math.min(generalStopCount - 1, keyboardTarget ?? generalNeutralIndex)
+  const activeIndex = dragIndex ?? (exact ? exactIndex : generalNeutralIndex)
+  const bandPosition = dragPosition ?? activeIndex + 0.5
+  const bandPadding = exact ? 2 : 0.5
+  const startsAtOne = exact && sourceWords === 1
+  const coversStartIcon = activeIndex === 0 && activeIndex < generalNeutralIndex
+  const coversEndIcon = activeIndex === generalStopCount - 1 && activeIndex > generalNeutralIndex
+  const bandStart = coversStartIcon ? 0 : Math.max(0, Math.min(generalNeutralIndex + 0.5, bandPosition) - bandPadding)
+  const bandEnd = coversEndIcon
+    ? generalStopCount
+    : startsAtOne && activeIndex > 0
+      ? (bandPosition - 0.5) / (generalStopCount - 1) * generalStopCount
+      : Math.min(generalStopCount, Math.max(generalNeutralIndex + 0.5, bandPosition) + bandPadding)
+  const notchPosition = activeIndex < generalNeutralIndex ? 'left-2' : 'right-2'
   const pointerId = useRef<number | null>(null)
-  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null)
-  const [focusedLabel, setFocusedLabel] = useState<string | null>(null)
-  const selectedLabel = `${sourceWords} selected ${sourceWords === 1 ? 'word' : 'words'}`
+  const [hoveredTarget, setHoveredTarget] = useState<(typeof stops)[number] | null>(null)
+  const [focusedTarget, setFocusedTarget] = useState<(typeof stops)[number] | null>(null)
   const activeStop = dragIndex === null ? null : availableStops[dragIndex]
   const activeTarget = activeStop && stops.find(({ operation, degree }) => operation === activeStop[0] && degree === activeStop[1])
-  const dragLabel = activeTarget
-    ? `${activeTarget.operation === 'contract' ? 'Distill' : 'Extrapolate'} to ${activeTarget.target} ${activeTarget.target === 1 ? 'word' : 'words'}`
-    : selectedLabel
+  const previewTarget = dragIndex === null ? hoveredTarget ?? focusedTarget : activeTarget
+  const wordCount = exact ? activeIndex + 1 : previewTarget?.target ?? sourceWords
+  const generalSliderRef = useRef<HTMLDivElement>(null)
+  const generalContent = (
+    <>
+      {(exact || stops.some(({ operation }) => operation === 'contract')) && (
+        <Microscope
+          size={16}
+          className="zoom-slider-icon zoom-slider-icon--start"
+          data-inactive={activeIndex > generalNeutralIndex || undefined}
+        />
+      )}
+      {(exact || stops.some(({ operation }) => operation === 'expand')) && (
+        <Telescope
+          size={16}
+          className="zoom-slider-icon zoom-slider-icon--end"
+          data-inactive={activeIndex < generalNeutralIndex || undefined}
+        />
+      )}
+      <span className="zoom-slider-readout zoom-slider-value">
+        <WordCountComparison sourceWords={sourceWords} wordCount={wordCount} />
+      </span>
+    </>
+  )
+
+  const applyGeneralTarget = (index: number) => {
+    if (disabled || index === generalNeutralIndex) return
+    if (exact) {
+      onZoom(index < generalNeutralIndex ? 'contract' : 'expand', undefined, index + 1)
+      return
+    }
+    const stop = availableStops[index]
+    if (stop) onZoom(stop[0], stop[1])
+  }
 
   const positionAtPointer = (event: PointerEvent<HTMLDivElement>) => {
     const { left, width } = event.currentTarget.getBoundingClientRect()
-    return Math.max(0.5, Math.min(availableStops.length - 0.5, (event.clientX - left) / width * availableStops.length))
+    return Math.max(0.5, Math.min(generalStopCount - 0.5, (event.clientX - left) / width * generalStopCount))
   }
 
   const clearDrag = () => {
@@ -79,6 +363,25 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
   const [contentWidth, setContentWidth] = useState<number>()
   const reviewing = !!review
   useLayoutEffect(() => {
+    updateGeneralNotch(generalSliderRef.current)
+  })
+  useLayoutEffect(() => {
+    const slider = generalSliderRef.current
+    const fill = slider?.querySelector('.zoom-slider-fill')
+    const value = slider?.querySelector('.zoom-slider-content .zoom-slider-value')
+    if (!slider || !fill || !value) return
+    const update = () => updateGeneralNotch(slider)
+    const observer = new ResizeObserver(update)
+    observer.observe(fill)
+    observer.observe(value)
+    slider.addEventListener('transitionend', update)
+    return () => {
+      observer.disconnect()
+      slider.removeEventListener('transitionend', update)
+    }
+  }, [inline, reviewing])
+  useLayoutEffect(() => {
+    if (inline) return
     const content = fieldsetRef.current
     if (!content) return
     const measure = () => setContentWidth(content.offsetWidth)
@@ -86,7 +389,7 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
     const observer = new ResizeObserver(measure)
     observer.observe(content)
     return () => observer.disconnect()
-  }, [])
+  }, [inline])
   useEffect(() => {
     if (!reviewing || !visible) return
     const [reject, accept] = fieldsetRef.current?.querySelectorAll('button') ?? []
@@ -104,8 +407,8 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
     <div
       aria-hidden={!visible}
       inert={!visible}
-      className={reviewTop === undefined ? 'fixed z-50' : 'absolute z-50'}
-      style={{
+      className={inline ? 'w-full' : reviewTop === undefined ? 'fixed z-50' : 'absolute z-50'}
+      style={inline ? undefined : {
         zIndex: 9999,
         left: reviewTop === undefined ? anchor?.x ?? '50%' : '50%',
         top: reviewTop ?? anchor?.y ?? '100%',
@@ -115,12 +418,12 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
     >
       <motion.div
         ref={menuRef}
-        initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.94, y: reduceMotion ? 0 : hiddenOffset }}
+        initial={inline ? false : { opacity: 0, scale: reduceMotion ? 1 : 0.94, y: reduceMotion ? 0 : hiddenOffset }}
         animate={{
           opacity: visible ? 1 : 0,
           scale: reduceMotion || visible ? 1 : 0.94,
           y: reduceMotion || visible ? 0 : hiddenOffset,
-          width: contentWidth ?? 'max-content',
+          width: inline ? '100%' : contentWidth ?? 'max-content',
         }}
         transition={reduceMotion
           ? { duration: 0.1, width: { duration: 0 } }
@@ -135,23 +438,21 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
                 : { duration: menuMotion.exitDuration, ease: 'easeIn' },
             }
         }
-        className={reviewing ? 'selection-segments review-segments w-max' : 'selection-segments w-max'}
+        className={`${inline ? 'document-zoom-control w-full' : 'selection-segments w-max'} ${reviewing ? 'review-segments' : ''}`}
         style={{
           transformOrigin: anchor?.placement === 'above' ? '50% 100%' : '50% 0%',
-          height: settings.shape.height,
+          height: reviewing ? settings.shape.height : undefined,
         }}
         onMouseDown={(e) => {
-          // Keep the textarea highlight when Distill / Extrapolate is clicked.
-          e.preventDefault()
+          if (!inline) e.preventDefault()
         }}
       >
-        <fieldset ref={fieldsetRef} disabled={loading || (disabled && !reviewing)} className="relative left-1/2 m-0 h-full w-max min-w-0 -translate-x-1/2 border-0 p-0">
-          {loading ? (
-            <div role="status" className="flex h-full items-center gap-2 px-6 text-sm font-medium text-(--slate-950)">
-              <LoaderCircle className="size-[18px] motion-safe:animate-spin" aria-hidden="true" />
-              Zooming…
-            </div>
-          ) : reviewing ? (
+        <fieldset
+          ref={fieldsetRef}
+          disabled={disabled && !reviewing}
+          className={`relative m-0 h-full min-w-0 border-0 p-0 ${inline ? 'w-full' : 'left-1/2 w-max -translate-x-1/2'}`}
+        >
+          {reviewing ? (
             <SegmentedController<string>
               bordered={false}
               label="Zoom result"
@@ -163,87 +464,140 @@ export function ControlBar({ sourceWords, reviewTop, menuRef, settings, visible,
               }}
             />
           ) : (
-            <div className="flex h-full w-[min(18rem,calc(100vw-2rem))] flex-col justify-center gap-1 px-3" role="group" aria-label="Semantic zoom strength">
-              <div className="flex items-center justify-center">
-                <span className="text-xs font-semibold tabular-nums text-(--slate-800)">{dragIndex === null ? hoveredLabel ?? focusedLabel ?? selectedLabel : dragLabel}</span>
-              </div>
-              <div className="flex h-7 items-center rounded-full bg-(--slate-100) text-(--slate-600)">
+            <div className={inline ? 'w-full' : 'w-[min(18rem,calc(100vw-2rem))]'}>
+              {inline ? (
+                <ZoomScale
+                  stops={stops}
+                  neutralIndex={neutralIndex}
+                  sourceWords={sourceWords}
+                  previousWords={previousWords}
+                  disabled={disabled}
+                  loadingOperation={scaleLoadingOperation}
+                  reviewOperation={scaleReviewOperation}
+                  onZoom={onZoom}
+                />
+              ) : (
                 <div
-                  className={`relative grid h-full min-w-0 flex-1 touch-none select-none ${dragIndex === null ? 'cursor-grab' : 'cursor-grabbing'}`}
-                  style={{ gridTemplateColumns: `repeat(${availableStops.length}, minmax(0, 1fr))` }}
-                  onPointerDown={(event) => {
-                    if (disabled || !event.isPrimary || event.button !== 0 || pointerId.current !== null) return
-                    event.preventDefault()
-                    event.currentTarget.setPointerCapture(event.pointerId)
-                    pointerId.current = event.pointerId
-                    setDragPosition(positionAtPointer(event))
-                  }}
-                  onPointerMove={(event) => {
-                    if (pointerId.current === event.pointerId) setDragPosition(positionAtPointer(event))
-                  }}
-                  onPointerUp={(event) => {
-                    if (pointerId.current !== event.pointerId) return
-                    const stop = availableStops[Math.floor(positionAtPointer(event))]
-                    clearDrag()
-                    setHoveredLabel(null)
-                    if (!disabled && stop) onZoom(stop[0], stop[1])
-                  }}
-                  onLostPointerCapture={clearDrag}
+                  className="zoom-slider-layout flex flex-col justify-center"
+                  style={{ '--zoom-slider-menu-height': `${settings.shape.height}px` } as CSSProperties}
+                  role="group"
+                  aria-label="Semantic zoom strength"
                 >
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-y-0.5 rounded-full bg-(--accent)"
-                    style={{
-                      left: `${bandStart / availableStops.length * 100}%`,
-                      right: `${(1 - bandEnd / availableStops.length) * 100}%`,
-                    }}
-                  >
-                    <span
-                      className={`absolute top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-full bg-(--slate-600) ${notchPosition}`}
-                    />
-                  </span>
-                  {stops.some(({ operation }) => operation === 'contract') && (
-                    <Microscope size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2" aria-hidden="true" />
-                  )}
-                  {stops.some(({ operation }) => operation === 'expand') && (
-                    <Telescope size={16} className="pointer-events-none absolute right-3 top-1/2 z-10 -translate-y-1/2" aria-hidden="true" />
-                  )}
-                  {availableStops.map((stop) => {
-                    if (!stop) {
-                      return (
-                        <span key="neutral" role="img" aria-label="Neutral" />
-                      )
-                    }
-                    const [operation, degree, label] = stop
-                    const target = stops.find((stop) => stop.operation === operation && stop.degree === degree)?.target
-                    if (target === undefined) return null
-                    const action = operation === 'contract' ? 'Distill' : 'Extrapolate'
-                    const preview = `${action} to ${target} ${target === 1 ? 'word' : 'words'}`
-                    return (
-                      <div
-                        key={label}
-                        className="relative min-w-0"
-                        onMouseEnter={() => setHoveredLabel(preview)}
-                        onMouseLeave={() => setHoveredLabel(null)}
-                      >
-                        <button
-                          type="button"
-                          aria-label={`${label}, ${preview}`}
-                          onFocus={() => setFocusedLabel(preview)}
-                          onBlur={() => setFocusedLabel(null)}
-                          onClick={(event) => {
-                            if (event.detail !== 0) return
-                            setHoveredLabel(null)
-                            setFocusedLabel(null)
-                            onZoom(operation, degree)
-                          }}
-                          className="grid size-full cursor-inherit place-items-center rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--slate-950)"
-                        />
-                      </div>
-                    )
-                  })}
+                  <div className="flex h-7 items-center text-(--slate-950)">
+                    <div
+                      ref={generalSliderRef}
+                      className="zoom-slider relative grid h-full min-w-0 flex-1 touch-none select-none"
+                      data-dragging={dragIndex !== null || undefined}
+                      data-covers-start-icon={coversStartIcon || undefined}
+                      data-starts-at-one={startsAtOne || undefined}
+                      data-neutral-microscope={startsAtOne && activeIndex === 0 || undefined}
+                      data-end-stop={activeIndex === 0 || activeIndex === generalStopCount - 1 || undefined}
+                      data-covers-end-icon={coversEndIcon || undefined}
+                      style={{
+                        '--zoom-slider-fill-start': bandStart / generalStopCount,
+                        '--zoom-slider-fill-end': 1 - bandEnd / generalStopCount,
+                        gridTemplateColumns: exact ? undefined : `repeat(${availableStops.length}, minmax(0, 1fr))`,
+                      } as CSSProperties}
+                      role={exact ? 'slider' : undefined}
+                      tabIndex={exact && !disabled ? 0 : undefined}
+                      aria-label={exact ? 'Semantic zoom target in words' : undefined}
+                      aria-valuemin={exact ? 1 : undefined}
+                      aria-valuemax={exact ? MAX_EXACT_ZOOM_WORDS : undefined}
+                      aria-valuenow={exact ? wordCount : undefined}
+                      aria-disabled={exact && disabled || undefined}
+                      onBlur={exact ? () => setKeyboardTarget(null) : undefined}
+                      onKeyDown={exact ? (event) => {
+                        if (disabled || event.altKey || event.ctrlKey || event.metaKey) return
+                        let next: number
+                        switch (event.key) {
+                          case 'ArrowLeft':
+                          case 'ArrowDown': next = exactIndex - 1; break
+                          case 'ArrowRight':
+                          case 'ArrowUp': next = exactIndex + 1; break
+                          case 'Home': next = 0; break
+                          case 'End': next = generalStopCount - 1; break
+                          case 'Enter':
+                          case ' ':
+                            event.preventDefault()
+                            setKeyboardTarget(null)
+                            applyGeneralTarget(exactIndex)
+                            return
+                          default: return
+                        }
+                        event.preventDefault()
+                        setKeyboardTarget(Math.max(0, Math.min(generalStopCount - 1, next)))
+                      } : undefined}
+                      onPointerDown={(event) => {
+                        if (disabled || !event.isPrimary || event.button !== 0 || pointerId.current !== null) return
+                        event.preventDefault()
+                        event.currentTarget.setPointerCapture(event.pointerId)
+                        pointerId.current = event.pointerId
+                        setDragPosition(positionAtPointer(event))
+                      }}
+                      onPointerMove={(event) => {
+                        if (pointerId.current === event.pointerId) setDragPosition(positionAtPointer(event))
+                      }}
+                      onPointerUp={(event) => {
+                        if (pointerId.current !== event.pointerId) return
+                        const index = Math.floor(positionAtPointer(event))
+                        clearDrag()
+                        setHoveredTarget(null)
+                        setKeyboardTarget(null)
+                        applyGeneralTarget(index)
+                      }}
+                      onLostPointerCapture={(event) => {
+                        if (event.target === event.currentTarget && pointerId.current === event.pointerId) clearDrag()
+                      }}
+                    >
+                      <span aria-hidden="true" className="zoom-slider-track">
+                        <span className="zoom-slider-fill">
+                          <span className={`zoom-slider-notch ${notchPosition}`} />
+                        </span>
+                      </span>
+                      <span className="zoom-slider-content" aria-hidden="true">{generalContent}</span>
+                      <span aria-hidden="true" className="zoom-slider-track zoom-slider-track--content">
+                        <span className="zoom-slider-fill zoom-slider-fill--content">
+                          <span className="zoom-slider-content--filled">{generalContent}</span>
+                        </span>
+                      </span>
+                      {!exact && availableStops.map((stop) => {
+                        if (!stop) {
+                          return (
+                            <span key="neutral" role="img" aria-label="Neutral" />
+                          )
+                        }
+                        const [operation, degree, label] = stop
+                        const target = stops.find((stop) => stop.operation === operation && stop.degree === degree)
+                        if (!target) return null
+                        const action = operation === 'contract' ? 'Distill' : 'Extrapolate'
+                        const preview = `${action} to ${target.target} ${target.target === 1 ? 'word' : 'words'}`
+                        return (
+                          <div
+                            key={label}
+                            className="relative min-w-0"
+                            onMouseEnter={() => setHoveredTarget(target)}
+                            onMouseLeave={() => setHoveredTarget(null)}
+                          >
+                            <button
+                              type="button"
+                              aria-label={`${label}, ${preview}`}
+                              onFocus={() => setFocusedTarget(target)}
+                              onBlur={() => setFocusedTarget(null)}
+                              onClick={(event) => {
+                                if (event.detail !== 0) return
+                                setHoveredTarget(null)
+                                setFocusedTarget(null)
+                                onZoom(operation, degree)
+                              }}
+                              className="grid size-full cursor-inherit place-items-center rounded-full focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-(--slate-950)"
+                            />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </fieldset>
