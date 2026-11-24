@@ -100,7 +100,7 @@ body {
 }
 
 .document-editor-scroll {
-  --document-scrollbar-thumb: color-mix(in srgb, var(--subtle) 75%, white);
+  --document-scrollbar-thumb: color-mix(in srgb, var(--subtle) 50%, white);
   overflow: auto;
   padding-block: var(--document-text-padding-block);
   padding-inline: calc(var(--page-margin) + 1px - var(--document-scroll-inset));
