@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { wordCount } from '@/app/lib/rewriteClient'
-import { MAX_EXACT_ZOOM_WORDS, zoomTargets } from '@/app/lib/zoomTargets'
+import { MAX_EXACT_ZOOM_WORDS, MAX_RULER_TARGET_WORDS, rulerTargetRange, zoomTargets } from '@/app/lib/zoomTargets'
 
 const guidance = {
   expand: [
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     console.log('Request body:', body)
     
-    const { prompt, operation, degree = 2, targetWords: exactTarget, excerpt, context, boundaries } = body
+    const { prompt, operation, degree = 2, targetWords: requestedTarget, approximateTarget, excerpt, context, boundaries } = body
     const hasBoundaries = typeof boundaries?.before === 'string' && typeof boundaries?.after === 'string'
     
     if (typeof prompt !== 'string' || !prompt.trim()) {
@@ -40,18 +40,22 @@ export async function POST(req: Request) {
     }
 
     const sourceWords = wordCount(prompt)
-    const exact = exactTarget !== undefined
-    if (exact && (
-      sourceWords > MAX_EXACT_ZOOM_WORDS ||
-      typeof exactTarget !== 'number' || !Number.isInteger(exactTarget) ||
-      exactTarget < 1 || exactTarget > MAX_EXACT_ZOOM_WORDS ||
-      (operation === 'expand' ? exactTarget <= sourceWords : exactTarget >= sourceWords)
+    const hasTarget = requestedTarget !== undefined
+    const approximate = hasTarget && approximateTarget === true
+    const exact = hasTarget && !approximate
+    const targetLimit = approximate ? MAX_RULER_TARGET_WORDS : MAX_EXACT_ZOOM_WORDS
+    if (hasTarget && (
+      typeof requestedTarget !== 'number' || !Number.isInteger(requestedTarget) ||
+      requestedTarget < 1 || requestedTarget > targetLimit ||
+      (operation === 'expand' ? requestedTarget <= sourceWords : requestedTarget >= sourceWords)
     )) {
-      return new Response('Exact targets must be integers from 1 to 100 and match the zoom direction for a passage of at most 100 words.', { status: 400 })
+      return new Response(`Targets must be integers from 1 to ${targetLimit} and match the zoom direction.`, { status: 400 })
     }
-    const stop = exact
-      ? { target: exactTarget, min: exactTarget, max: exactTarget }
-      : zoomTargets(sourceWords).find((stop) => stop.operation === operation && stop.degree === degree)
+    const stop = approximate
+      ? rulerTargetRange(sourceWords, requestedTarget)
+      : exact
+        ? { target: requestedTarget, min: requestedTarget, max: requestedTarget }
+        : zoomTargets(sourceWords).find((stop) => stop.operation === operation && stop.degree === degree)
     if (!stop) return new Response('Zoom stop unavailable for this passage', { status: 400 })
     const { target: targetWords, min: minWords, max: maxWords } = stop
 
@@ -68,8 +72,8 @@ export async function POST(req: Request) {
     console.log('Operation:', operation)
 
     const instructions = [
-      `Rewrite only the passage. It contains ${sourceWords} words. ${exact ? `Return exactly ${targetWords} words.` : `Aim for exactly ${targetWords} words, within ${minWords}–${maxWords} words.`} Count words separated by whitespace and revise your draft to fit the budget before replying.`,
-      exact ? '' : guidance[operation === 'expand' ? 'expand' : 'contract'][degree - 1],
+      `Rewrite only the passage. It contains ${sourceWords} words. ${exact ? `Return exactly ${targetWords} words.` : `Aim for ${targetWords} words, within ${minWords}–${maxWords} words.`} Count words separated by whitespace and revise your draft to fit the budget before replying.`,
+      hasTarget ? '' : guidance[operation === 'expand' ? 'expand' : 'contract'][degree - 1],
       'Preserve the core meaning and voice. Reply with only the rewritten passage, without a preamble, quotation marks around it, or a word-count report.',
       hasBoundaries
         ? 'The before and after fields are exact, unchanged text on either side of the selection. Read before + replacement + after as one continuous passage before answering. Make the replacement fit the existing sentence structure, capitalization, and punctuation at both joins. Continue a mid-sentence fragment as a fragment. Do not repeat neighboring words or punctuation or add a sentence ending if the sentence continues outside the selection. The editor preserves whitespace at the edges of the selected passage.'

@@ -1,6 +1,49 @@
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 export const MAX_EXACT_ZOOM_WORDS = 100
+export const MAX_RULER_TARGET_WORDS = 2000
+
+const rulerSteps = [1, 5, 10, 25] as const
+const rulerThresholds = [125, 500, 1250]
+
+export function rulerStepLevel(sourceWords: number, previous?: number) {
+  let level = previous ?? 0
+  while (level < rulerThresholds.length && sourceWords >= rulerThresholds[level]) level++
+  while (level > 0 && sourceWords < rulerThresholds[level - 1] * 0.85) level--
+  return level
+}
+
+export function rulerTargets(sourceWords: number, level: number) {
+  if (sourceWords === 0) return [0]
+
+  const step = rulerSteps[level]
+  const build = (direction: -1 | 1, end: number) => {
+    let current = Math.min(sourceWords, MAX_RULER_TARGET_WORDS)
+    const targets = current < sourceWords ? [current] : []
+    // Beyond the nearby fine ticks, widen the spacing to keep the full range reachable.
+    while (current !== end) {
+      const stride = step * Math.pow(2, Math.floor(targets.length / 24))
+      current = direction === -1 ? Math.max(end, current - stride) : Math.min(end, current + stride)
+      targets.push(current)
+    }
+    return targets
+  }
+
+  return [
+    ...build(-1, 1).reverse(),
+    sourceWords,
+    ...(sourceWords < MAX_RULER_TARGET_WORDS ? build(1, MAX_RULER_TARGET_WORDS) : []),
+  ]
+}
+
+export function rulerTargetRange(sourceWords: number, target: number) {
+  const tolerance = Math.round(target * 0.05)
+  return {
+    target,
+    min: Math.max(1, target - tolerance, target > sourceWords ? sourceWords + 1 : 1),
+    max: Math.min(MAX_RULER_TARGET_WORDS, target + tolerance, target < sourceWords ? sourceWords - 1 : MAX_RULER_TARGET_WORDS),
+  }
+}
 
 const degrees = [1, 2, 3] as const
 // Each step quadruples the requested change before rounding and length limits.
