@@ -6,11 +6,9 @@ Semantic zoom for text — expand or contract content while preserving meaning u
 
 ## Zoom Controls
 
-`(+) Zoom in` Add words and detail by moving the slider left.
+`(-) Zoom out` Distill to irreducible simplicity
 
-`(−) Zoom out` Distill the text by moving the slider right.
-
-Use Cmd/Ctrl + Plus or Minus with a selection to zoom just that passage.
+`(+) Zoom in` Extrapolate into exhaustive detail
 
 ## References
 
