@@ -258,10 +258,6 @@ body {
   white-space: nowrap;
 }
 
-.zoom-scale-target-range {
-  color: var(--slate-600);
-}
-
 .zoom-scale-icon {
   position: absolute;
   top: var(--zoom-scale-label-y);

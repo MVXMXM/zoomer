@@ -7,7 +7,7 @@ import { Microscope, Telescope } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import type { SelectionMenuSettings } from '@/app/lib/selectionMenuSettings'
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
-import { MAX_EXACT_ZOOM_WORDS, rulerStepLevel, rulerTargetRange, rulerTargets, zoomTargets } from '@/app/lib/zoomTargets'
+import { MAX_EXACT_ZOOM_WORDS, rulerStepLevel, rulerTargets, zoomTargets } from '@/app/lib/zoomTargets'
 import { AnimatedWordCount } from './AnimatedWordCount'
 
 type ControlBarProps = {
@@ -161,7 +161,6 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
   const direction = loadingOperation ?? reviewOperation ?? (wordCount < sourceWords ? 'contract' : wordCount > sourceWords ? 'expand' : null)
   const reduceMotion = useReducedMotion()
   const fadeTransition = { duration: reduceMotion ? 0 : 0.22, ease: 'easeOut' } as const
-  const targetRange = index === neutralIndex ? null : rulerTargetRange(sourceWords, countAt(index))
   const apply = (position: number) => {
     const target = countAt(position)
     if (disabled || previewing || sourceWords === 0 || target === sourceWords) return
@@ -215,7 +214,8 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
         const offset = dragged ? 0 : event.clientX - (bounds.left + bounds.width / 2)
         const target = Math.max(0, Math.min(lastIndex, Math.round((ruler.scrollLeft + offset) / tickWidth)))
         clearDrag(event.pointerId)
-        updateTick(target)
+        if (dragged) apply(target)
+        else updateTick(target)
       }}
       onPointerCancel={(event) => { clearDrag(event.pointerId) }}
       onLostPointerCapture={(event) => { clearDrag(event.pointerId) }}
@@ -272,14 +272,10 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
         <button
           type="button"
           className="zoom-slider-readout"
-          aria-label={targetRange ? `Rewrite toward ${wordCount} words. Accepted range: ${targetRange.min} to ${targetRange.max} words.` : undefined}
           onClick={() => apply(index)}
           disabled={index === neutralIndex}
         >
           <WordCountComparison sourceWords={index === neutralIndex ? previousWords ?? sourceWords : sourceWords} wordCount={wordCount} />
-          {targetRange && targetRange.min !== targetRange.max && (
-            <span className="zoom-scale-target-range"> ({targetRange.min}–{targetRange.max})</span>
-          )}
         </button>
       </motion.div>
       <span
