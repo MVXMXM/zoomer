@@ -13,7 +13,7 @@ import { AnimatedWordCount } from './AnimatedWordCount'
 type ControlBarProps = {
   sourceWords: number
   previousWords?: number
-  reviewTop?: number
+  reviewTop?: string
   menuRef?: React.Ref<HTMLDivElement>
   inline?: boolean
   scaleLoadingOperation?: ZoomOperation | null
@@ -33,21 +33,21 @@ type ControlBarProps = {
 }
 
 const reviewSegments = [
-  { id: 'reject', label: 'Reject' },
-  { id: 'accept', label: 'Accept' },
+  { id: 'reject', label: 'Undo' },
+  { id: 'accept', label: 'Keep' },
 ] as const
 
 const notchSoundVoices = 8
 const notchSoundVolumeRecoveryMs = 120
 
 const zoomStops = [
-  ['contract', 3, 'Strong distillation'],
-  ['contract', 2, 'Medium distillation'],
-  ['contract', 1, 'Light distillation'],
-  null,
-  ['expand', 1, 'Light extrapolation'],
-  ['expand', 2, 'Medium extrapolation'],
   ['expand', 3, 'Strong extrapolation'],
+  ['expand', 2, 'Medium extrapolation'],
+  ['expand', 1, 'Light extrapolation'],
+  null,
+  ['contract', 1, 'Light distillation'],
+  ['contract', 2, 'Medium distillation'],
+  ['contract', 3, 'Strong distillation'],
 ] as const
 
 function WordCountComparison({ sourceWords, wordCount }: { sourceWords: number; wordCount: number }) {
@@ -80,7 +80,7 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
   const tickWidth = 16 // SliderScale's fixed tick width.
   const [stepLevel, setStepLevel] = useState(() => rulerStepLevel(sourceWords))
   const [dragging, setDragging] = useState(false)
-  const targets = rulerTargets(sourceWords, stepLevel)
+  const targets = rulerTargets(sourceWords, stepLevel).reverse()
   const neutralIndex = targets.indexOf(sourceWords)
   const lastIndex = targets.length - 1
   const [tick, setTick] = useState(neutralIndex)
@@ -226,8 +226,14 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
           apply(index)
           return
         }
-        const direction = event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1
-          : event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 1 : 0
+        if (event.key === 'Home' || event.key === 'End') {
+          event.preventDefault()
+          event.stopPropagation()
+          updateTick(event.key === 'Home' ? lastIndex : 0)
+          return
+        }
+        const direction = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1
+          : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : 0
         if (!direction) return
         event.preventDefault()
         event.stopPropagation()
@@ -278,27 +284,29 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
           <WordCountComparison sourceWords={index === neutralIndex ? previousWords ?? sourceWords : sourceWords} wordCount={wordCount} />
         </button>
       </motion.div>
-      <span
-        className="zoom-scale-icon zoom-scale-icon--start"
-        data-active={direction === 'contract' || undefined}
-        data-inactive={!!reviewOperation || direction === 'expand' || undefined}
-        aria-hidden="true"
-      >
-        <Microscope size={24} />
-      </span>
-      {neutralIndex < lastIndex && (
+      {(neutralIndex > 0 || direction === 'expand') && (
         <span
-          className="zoom-scale-icon zoom-scale-icon--end"
+          className="zoom-scale-icon zoom-scale-icon--start"
           data-active={direction === 'expand' || undefined}
           data-inactive={!!reviewOperation || direction === 'contract' || undefined}
           aria-hidden="true"
         >
-          <Telescope size={24} />
+          <Microscope size={24} strokeWidth={1.5} />
+        </span>
+      )}
+      {(neutralIndex < lastIndex || direction === 'contract') && (
+        <span
+          className="zoom-scale-icon zoom-scale-icon--end"
+          data-active={direction === 'contract' || undefined}
+          data-inactive={!!reviewOperation || direction === 'expand' || undefined}
+          aria-hidden="true"
+        >
+          <Telescope size={24} strokeWidth={1.5} />
         </span>
       )}
       {loadingOperation && (
         <div ref={loadingLabelRef} role="status" className="zoom-scale-loading zoom-slider-readout">
-          <span><span>{loadingOperation === 'contract' ? 'Zooming in' : 'Zooming out'}</span></span>
+          <span><span>{loadingOperation === 'contract' ? 'Zooming out' : 'Zooming in'}</span></span>
         </div>
       )}
       {reviewOperation && previousWords !== undefined && (
@@ -333,7 +341,7 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
   const neutralIndex = availableStops.indexOf(null)
   const exact = sourceWords > 0 && sourceWords <= MAX_EXACT_ZOOM_WORDS
   const generalStopCount = exact ? MAX_EXACT_ZOOM_WORDS : availableStops.length
-  const generalNeutralIndex = exact ? sourceWords - 1 : neutralIndex
+  const generalNeutralIndex = exact ? MAX_EXACT_ZOOM_WORDS - sourceWords : neutralIndex
   const [keyboardTarget, setKeyboardTarget] = useState<number | null>(null)
   const [dragPosition, setDragPosition] = useState<number | null>(null)
   const dragIndex = dragPosition === null ? null : Math.floor(dragPosition)
@@ -341,15 +349,15 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
   const activeIndex = dragIndex ?? (exact ? exactIndex : generalNeutralIndex)
   const bandPosition = dragPosition ?? activeIndex + 0.5
   const bandPadding = exact ? 2 : 0.5
-  const startsAtOne = exact && sourceWords === 1
+  const endsAtOne = exact && sourceWords === 1
   const coversStartIcon = activeIndex === 0 && activeIndex < generalNeutralIndex
   const coversEndIcon = activeIndex === generalStopCount - 1 && activeIndex > generalNeutralIndex
-  const bandStart = coversStartIcon ? 0 : Math.max(0, Math.min(generalNeutralIndex + 0.5, bandPosition) - bandPadding)
-  const bandEnd = coversEndIcon
-    ? generalStopCount
-    : startsAtOne && activeIndex > 0
+  const bandStart = coversStartIcon
+    ? 0
+    : endsAtOne && activeIndex < generalNeutralIndex
       ? (bandPosition - 0.5) / (generalStopCount - 1) * generalStopCount
-      : Math.min(generalStopCount, Math.max(generalNeutralIndex + 0.5, bandPosition) + bandPadding)
+      : Math.max(0, Math.min(generalNeutralIndex + 0.5, bandPosition) - bandPadding)
+  const bandEnd = coversEndIcon ? generalStopCount : Math.min(generalStopCount, Math.max(generalNeutralIndex + 0.5, bandPosition) + bandPadding)
   const notchPosition = activeIndex < generalNeutralIndex ? 'left-2' : 'right-2'
   const pointerId = useRef<number | null>(null)
   const [hoveredTarget, setHoveredTarget] = useState<(typeof stops)[number] | null>(null)
@@ -357,7 +365,7 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
   const activeStop = dragIndex === null ? null : availableStops[dragIndex]
   const activeTarget = activeStop && stops.find(({ operation, degree }) => operation === activeStop[0] && degree === activeStop[1])
   const previewTarget = dragIndex === null ? hoveredTarget ?? focusedTarget : activeTarget
-  const wordCount = exact ? activeIndex + 1 : previewTarget?.target ?? sourceWords
+  const wordCount = exact ? MAX_EXACT_ZOOM_WORDS - activeIndex : previewTarget?.target ?? sourceWords
   const wordChange = wordCount - sourceWords
   const displayedCount = wordChange === 0 ? sourceWords : Math.abs(wordChange)
   const selectionPreviewWords = visible && !disabled && !review && wordCount !== sourceWords ? wordCount : null
@@ -367,14 +375,14 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
   const generalSliderRef = useRef<HTMLDivElement>(null)
   const generalContent = (
     <>
-      {(exact || stops.some(({ operation }) => operation === 'contract')) && (
+      {(exact || stops.some(({ operation }) => operation === 'expand')) && (
         <Microscope
           size={16}
           className="zoom-slider-icon zoom-slider-icon--start"
           data-inactive={activeIndex > generalNeutralIndex || undefined}
         />
       )}
-      {(exact || stops.some(({ operation }) => operation === 'expand')) && (
+      {(exact || stops.some(({ operation }) => operation === 'contract')) && (
         <Telescope
           size={16}
           className="zoom-slider-icon zoom-slider-icon--end"
@@ -394,7 +402,7 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
   const applyGeneralTarget = (index: number) => {
     if (disabled || index === generalNeutralIndex) return
     if (exact) {
-      onZoom(index < generalNeutralIndex ? 'contract' : 'expand', undefined, index + 1)
+      onZoom(index < generalNeutralIndex ? 'expand' : 'contract', undefined, MAX_EXACT_ZOOM_WORDS - index)
       return
     }
     const stop = availableStops[index]
@@ -540,8 +548,8 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
                       className="zoom-slider relative grid h-full min-w-0 flex-1 touch-none select-none"
                       data-dragging={dragIndex !== null || undefined}
                       data-covers-start-icon={coversStartIcon || undefined}
-                      data-starts-at-one={startsAtOne || undefined}
-                      data-neutral-microscope={startsAtOne && activeIndex === 0 || undefined}
+                      data-ends-at-one={endsAtOne || undefined}
+                      data-neutral-telescope={endsAtOne && activeIndex === generalNeutralIndex || undefined}
                       data-end-stop={activeIndex === 0 || activeIndex === generalStopCount - 1 || undefined}
                       data-covers-end-icon={coversEndIcon || undefined}
                       style={{
@@ -562,11 +570,11 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
                         let next: number
                         switch (event.key) {
                           case 'ArrowLeft':
-                          case 'ArrowDown': next = exactIndex - 1; break
+                          case 'ArrowUp': next = exactIndex - 1; break
                           case 'ArrowRight':
-                          case 'ArrowUp': next = exactIndex + 1; break
-                          case 'Home': next = 0; break
-                          case 'End': next = generalStopCount - 1; break
+                          case 'ArrowDown': next = exactIndex + 1; break
+                          case 'Home': next = generalStopCount - 1; break
+                          case 'End': next = 0; break
                           case 'Enter':
                           case ' ':
                             event.preventDefault()

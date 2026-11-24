@@ -13,7 +13,6 @@ export function useBoxWidth(ref: RefObject<HTMLElement | null>): number {
       setWidth(next)
     })
     observer.observe(el)
-    setWidth(el.getBoundingClientRect().width)
     return () => observer.disconnect()
   }, [ref])
 

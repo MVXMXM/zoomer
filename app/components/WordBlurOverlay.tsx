@@ -331,8 +331,13 @@ export function WordBlurOverlay({
       {showSource ? (
         <StreamingSource text={oldText} range={focusRange} />
       ) : (
-        particlesRef.current.map((item) => {
+        particlesRef.current.map((item, index, words) => {
           const tone = markedColor(item.role, item.mark)
+          const previous = words[index - 1]
+          const next = words[index + 1]
+          const joinHighlights = phase === 'review' && item.role !== 'same'
+          const joinsPrevious = joinHighlights && previous?.role === item.role && previous.ty === item.ty && previous.tx < item.tx
+          const joinsNext = joinHighlights && next?.role === item.role && next.ty === item.ty && next.tx > item.tx
           return (
             <div
               key={item.id}
@@ -348,9 +353,10 @@ export function WordBlurOverlay({
                 willChange: 'transform, opacity, filter',
                 color: tone.color,
                 backgroundColor: tone.backgroundColor,
+                width: joinsNext ? next.x - item.x : undefined,
                 textDecorationLine: tone.textDecorationLine,
                 textDecorationColor: tone.textDecorationColor,
-                borderRadius: 3,
+                borderRadius: `${joinsPrevious ? 0 : 3}px ${joinsNext ? 0 : 3}px ${joinsNext ? 0 : 3}px ${joinsPrevious ? 0 : 3}px`,
               }}
             >
               {item.word}

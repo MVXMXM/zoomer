@@ -116,8 +116,9 @@ export function useArticleEditor(initialContent: string) {
       wholeDocument = false,
       approximateTarget = false,
     ) => {
+      const action = operation === 'expand' ? 'zoom in' : 'zoom out'
       if (!content.trim()) {
-        setError(`Please enter some text to ${operation}.`)
+        setError(`Please enter some text before you ${action}.`)
         setTimeout(() => setError(null), 3000)
         return
       }
@@ -135,7 +136,7 @@ export function useArticleEditor(initialContent: string) {
       const range = wholeDocument ? { start: 0, end: content.length } : live ?? remembered
       if (!range) {
         setHasSelection(false)
-        setError(`Select some text to ${operation}.`)
+        setError(`Select some text before you ${action}.`)
         setTimeout(() => setError(null), 3000)
         return
       }
@@ -187,7 +188,7 @@ export function useArticleEditor(initialContent: string) {
         hooks?.onError?.()
         if (isAbortError(err) || controller.signal.aborted) return
         if (!(err instanceof RangeError)) console.error(`Error ${operation}ing text:`, err)
-        setError(err instanceof RangeError ? err.message : `Failed to ${operation} text. Please try again.`)
+        setError(err instanceof RangeError ? err.message : `Couldn’t ${action}. Please try again.`)
         setTimeout(() => setError(null), 3000)
       } finally {
         if (abortRef.current === controller) abortRef.current = null
