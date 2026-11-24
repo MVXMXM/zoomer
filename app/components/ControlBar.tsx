@@ -7,7 +7,7 @@ import { Microscope, Telescope } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import type { SelectionMenuSettings } from '@/app/lib/selectionMenuSettings'
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
-import { MAX_EXACT_ZOOM_WORDS, zoomTargets } from '@/app/lib/zoomTargets'
+import { MAX_EXACT_ZOOM_WORDS, rulerStepLevel, rulerTargets, zoomTargets } from '@/app/lib/zoomTargets'
 import { AnimatedWordCount } from './AnimatedWordCount'
 
 type ControlBarProps = {
@@ -28,7 +28,7 @@ type ControlBarProps = {
     placement: 'above' | 'below'
   } | null
   disabled: boolean
-  onZoom: (operation: ZoomOperation, degree?: ZoomDegree, targetWords?: number) => void
+  onZoom: (operation: ZoomOperation, degree?: ZoomDegree, targetWords?: number, approximateTarget?: boolean) => void
   review?: { onAccept: () => void; onReject: () => void }
 }
 
@@ -68,9 +68,7 @@ function WordCountComparison({ sourceWords, wordCount }: { sourceWords: number; 
   )
 }
 
-function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previousWords, previewWords, disabled, loadingOperation, reviewOperation, onZoom }: {
-  stops: ReturnType<typeof zoomTargets>
-  neutralIndex: number
+function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loadingOperation, reviewOperation, onZoom }: {
   sourceWords: number
   previousWords?: number
   previewWords?: number
@@ -80,44 +78,37 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
   onZoom: ControlBarProps['onZoom']
 }) {
   const tickWidth = 16 // SliderScale's fixed tick width.
-  const exact = sourceWords > 0 && sourceWords <= MAX_EXACT_ZOOM_WORDS
-  const neutralIndex = exact ? sourceWords - 1 : presetNeutralIndex
-  const lastIndex = exact ? Math.max(MAX_EXACT_ZOOM_WORDS, previewWords ?? 0) - 1 : stops.length
-  const ticksPerStop = exact ? 1 : 2
-  const lastTick = lastIndex * ticksPerStop
-  const initialTick = neutralIndex * ticksPerStop
-  const [tick, setTick] = useState(initialTick)
+  const [stepLevel, setStepLevel] = useState(() => rulerStepLevel(sourceWords))
+  const [dragging, setDragging] = useState(false)
+  const targets = rulerTargets(sourceWords, stepLevel)
+  const neutralIndex = targets.indexOf(sourceWords)
+  const lastIndex = targets.length - 1
+  const [tick, setTick] = useState(neutralIndex)
   const loading = Boolean(loadingOperation)
   const previewing = previewWords !== undefined
-  const [previous, setPrevious] = useState({ sourceWords, loading, previewing })
-  if (previous.sourceWords !== sourceWords || previous.loading !== loading || previous.previewing !== previewing) {
-    setPrevious({ sourceWords, loading, previewing })
-    if (previous.sourceWords !== sourceWords || !loading || previewing) setTick(initialTick)
+  const [previous, setPrevious] = useState({ sourceWords, loading, previewing, stepLevel })
+  if (previous.sourceWords !== sourceWords || previous.stepLevel !== stepLevel || previous.loading !== loading || previous.previewing !== previewing) {
+    setPrevious({ sourceWords, loading, previewing, stepLevel })
+    if (previous.sourceWords !== sourceWords || previous.stepLevel !== stepLevel || !loading || previewing) setTick(neutralIndex)
   }
+  useEffect(() => {
+    if (dragging || tick !== neutralIndex) return
+    const timer = window.setTimeout(() => {
+      setStepLevel((level) => rulerStepLevel(sourceWords, level))
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [dragging, neutralIndex, sourceWords, tick])
   const scaleRef = useRef<HTMLDivElement>(null)
   const notchSounds = useRef<(HTMLAudioElement | null)[]>([])
   const lastNotchSoundTrigger = useRef(-Infinity)
   const loadingLabelRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ ruler: HTMLElement; pointerId: number; x: number; scrollLeft: number } | null>(null)
-  const stopAt = (position: number) => position === neutralIndex
-    ? undefined
-    : stops[position < neutralIndex ? position : position - 1]
-  const countAt = (position: number) => exact ? position + 1 : stopAt(position)?.target ?? sourceWords
-  let index = Math.round(tick / ticksPerStop)
-  if (previewWords !== undefined) {
-    index = exact ? previewWords - 1 : neutralIndex
-    if (!exact && previewWords !== sourceWords) {
-      const step = previewWords < sourceWords ? -1 : 1
-      let distance = Infinity
-      for (let position = neutralIndex + step; position >= 0 && position <= lastIndex; position += step) {
-        const difference = Math.abs(countAt(position) - previewWords)
-        if (difference >= distance) break
-        distance = difference
-        index = position
-      }
-    }
-  }
-  const previewTick = index * ticksPerStop
+  const countAt = (position: number) => targets[position] ?? sourceWords
+  const index = previewWords === undefined
+    ? tick
+    : targets.reduce((closest, target, position) =>
+      Math.abs(target - previewWords) < Math.abs(countAt(closest) - previewWords) ? position : closest,
+    neutralIndex)
   const playNotchSound = useCallback(() => {
     const now = performance.now()
     const spacing = now - lastNotchSoundTrigger.current
@@ -130,16 +121,16 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
       // Audio playback can be blocked by the browser.
     })
   }, [])
-  const previousPreview = useRef({ tick: previewTick, active: previewing })
+  const previousPreview = useRef({ tick: index, active: previewing })
   useLayoutEffect(() => {
     const previous = previousPreview.current
-    if (!disabled && (previewing || previous.active) && previewTick !== previous.tick) playNotchSound()
-    previousPreview.current = { tick: previewTick, active: previewing }
-  }, [disabled, playNotchSound, previewing, previewTick])
+    if (!disabled && (previewing || previous.active) && index !== previous.tick) playNotchSound()
+    previousPreview.current = { tick: index, active: previewing }
+  }, [disabled, playNotchSound, previewing, index])
 
   const updateTick = (nextTick: number) => {
     if (previewing) return
-    if (!disabled && Math.round(nextTick / ticksPerStop) !== index) {
+    if (!disabled && nextTick !== index) {
       playNotchSound()
     }
     setTick(nextTick)
@@ -159,30 +150,27 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
   }, [loadingOperation])
 
   useLayoutEffect(() => {
-    const first = Math.min(initialTick, previewTick)
-    const last = Math.max(initialTick, previewTick)
+    const first = Math.min(neutralIndex, index)
+    const last = Math.max(neutralIndex, index)
     scaleRef.current?.querySelectorAll('.maxos-slider-scale-tick').forEach((tick, position) => {
-      tick.toggleAttribute('data-zoom-traversed', position >= first && position <= last && position !== initialTick)
+      tick.toggleAttribute('data-zoom-traversed', position >= first && position <= last && position !== neutralIndex)
     })
-  }, [initialTick, previewTick])
+  }, [neutralIndex, index, sourceWords, stepLevel])
 
   const wordCount = previewWords ?? countAt(index)
   const direction = loadingOperation ?? reviewOperation ?? (wordCount < sourceWords ? 'contract' : wordCount > sourceWords ? 'expand' : null)
   const reduceMotion = useReducedMotion()
   const fadeTransition = { duration: reduceMotion ? 0 : 0.22, ease: 'easeOut' } as const
   const apply = (position: number) => {
-    if (disabled || position === neutralIndex) return
-    if (exact) {
-      onZoom(position < neutralIndex ? 'contract' : 'expand', undefined, countAt(position))
-      return
-    }
-    const target = stopAt(position)
-    if (target) onZoom(target.operation, target.degree)
+    const target = countAt(position)
+    if (disabled || previewing || sourceWords === 0 || target === sourceWords) return
+    onZoom(target < sourceWords ? 'contract' : 'expand', undefined, target, true)
   }
   const clearDrag = (pointerId: number) => {
     const gesture = drag.current
     if (gesture?.pointerId !== pointerId) return
     drag.current = null
+    setDragging(false)
     delete gesture.ruler.dataset.dragging
   }
 
@@ -192,12 +180,12 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
       className="zoom-scale"
       data-loading={loadingOperation || undefined}
       data-reviewing={reviewOperation || undefined}
-      data-preset-stops={!exact || undefined}
       onPointerDownCapture={(event) => {
         if (!event.isPrimary || event.button !== 0 || !(event.target instanceof Element)) return
         const ruler = event.target.closest<HTMLElement>('[role="slider"]')
         if (!ruler) return
         event.stopPropagation()
+        setDragging(true)
         ruler.setPointerCapture(event.pointerId)
         drag.current = { ruler, pointerId: event.pointerId, x: event.clientX, scrollLeft: ruler.scrollLeft }
       }}
@@ -212,7 +200,7 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
         const bounds = ruler.getBoundingClientRect()
         const travel = delta < 0 ? bounds.right - x : x - bounds.left
         const progress = Math.min(1, distance / Math.max(1, travel))
-        const endScroll = delta < 0 ? 0 : lastTick * tickWidth
+        const endScroll = delta < 0 ? 0 : lastIndex * tickWidth
         ruler.dataset.dragging = ''
         ruler.scrollLeft = scrollLeft + (endScroll - scrollLeft) * progress
       }}
@@ -224,10 +212,10 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
         const dragged = 'dragging' in ruler.dataset
         const bounds = ruler.getBoundingClientRect()
         const offset = dragged ? 0 : event.clientX - (bounds.left + bounds.width / 2)
-        const target = Math.max(0, Math.min(lastIndex, Math.round((ruler.scrollLeft + offset) / (tickWidth * ticksPerStop))))
+        const target = Math.max(0, Math.min(lastIndex, Math.round((ruler.scrollLeft + offset) / tickWidth)))
         clearDrag(event.pointerId)
         if (dragged) apply(target)
-        else updateTick(target * ticksPerStop)
+        else updateTick(target)
       }}
       onPointerCancel={(event) => { clearDrag(event.pointerId) }}
       onLostPointerCapture={(event) => { clearDrag(event.pointerId) }}
@@ -243,7 +231,7 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
         if (!direction) return
         event.preventDefault()
         event.stopPropagation()
-        updateTick(Math.max(0, Math.min(lastTick, (index + direction) * ticksPerStop)))
+        updateTick(Math.max(0, Math.min(lastIndex, index + direction)))
       }}
     >
       {Array.from({ length: notchSoundVoices }, (_, voice) => (
@@ -262,21 +250,14 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
         transition={fadeTransition}
       >
         <SliderScale
-          key={sourceWords}
+          key={`${sourceWords}:${stepLevel}`}
           label="Semantic zoom target in words"
-          count={lastTick + 1}
-          value={previewing ? previewTick : tick}
+          count={lastIndex + 1}
+          value={previewing ? index : tick}
           onChange={updateTick}
-          tickLabel={(position) => {
-            if (exact) {
-              const count = countAt(position)
-              return count === 1 || count % 5 === 0 ? String(count) : undefined
-            }
-            if (position % ticksPerStop !== 0) return undefined
-            return String(countAt(position / ticksPerStop))
-          }}
+          tickLabel={(position) => position === neutralIndex || position % 5 === 0 ? String(countAt(position)) : undefined}
           formatValue={(position) => {
-            const count = previewWords ?? countAt(Math.round(position / ticksPerStop))
+            const count = previewWords ?? countAt(position)
             return `${count} ${count === 1 ? 'word' : 'words'}`
           }}
         />
@@ -288,7 +269,12 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
         animate={{ opacity: loadingOperation ? 0 : 1 }}
         transition={fadeTransition}
       >
-        <button type="button" className="zoom-slider-readout" onClick={() => apply(index)} disabled={index === neutralIndex}>
+        <button
+          type="button"
+          className="zoom-slider-readout"
+          onClick={() => apply(index)}
+          disabled={index === neutralIndex}
+        >
           <WordCountComparison sourceWords={index === neutralIndex ? previousWords ?? sourceWords : sourceWords} wordCount={wordCount} />
         </button>
       </motion.div>
@@ -300,7 +286,7 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
       >
         <Microscope size={24} />
       </span>
-      {(exact || neutralIndex < lastIndex) && (
+      {neutralIndex < lastIndex && (
         <span
           className="zoom-scale-icon zoom-scale-icon--end"
           data-active={direction === 'expand' || undefined}
@@ -533,8 +519,6 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
             <div className={inline ? 'w-full' : 'w-[min(18rem,calc(100vw-2rem))]'}>
               {inline ? (
                 <ZoomScale
-                  stops={stops}
-                  neutralIndex={neutralIndex}
                   sourceWords={sourceWords}
                   previousWords={previousWords}
                   previewWords={previewWords}

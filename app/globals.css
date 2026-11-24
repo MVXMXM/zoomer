@@ -224,12 +224,6 @@ body {
   width: 1.5px;
 }
 
-/* Leave a blank tick slot between adjacent zoom stops. */
-.zoom-scale[data-preset-stops] .maxos-slider-scale-tick:nth-child(even) {
-  visibility: hidden;
-  scroll-snap-align: none;
-}
-
 .zoom-scale .maxos-slider-scale-tick[data-zoom-traversed]::before {
   background: var(--accent);
 }

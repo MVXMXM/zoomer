@@ -114,6 +114,7 @@ export function useArticleEditor(initialContent: string) {
       },
       targetWords?: number,
       wholeDocument = false,
+      approximateTarget = false,
     ) => {
       if (!content.trim()) {
         setError(`Please enter some text to ${operation}.`)
@@ -165,6 +166,7 @@ export function useArticleEditor(initialContent: string) {
             boundaries: wholeDocument ? undefined : { before: oldText.slice(0, range.start), after: oldText.slice(range.end) },
             signal: controller.signal,
             targetWords,
+            approximateTarget,
           },
         )
         if (abortRef.current === controller) abortRef.current = null

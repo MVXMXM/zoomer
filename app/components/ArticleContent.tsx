@@ -281,7 +281,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
     setOverlayOpen(true)
   }, [])
 
-  const start = useCallback((operation: ZoomOperation, degree: ZoomDegree = 2, targetWords?: number, wholeDocument = false) => {
+  const start = useCallback((operation: ZoomOperation, degree: ZoomDegree = 2, targetWords?: number, wholeDocument = false, approximateTarget = false) => {
     void handleRewrite(operation, degree, {
       onStart: (source, range) => {
         phaseRef.current = 'stream'
@@ -308,7 +308,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
         }
       },
       onError: onSettled,
-    }, targetWords, wholeDocument)
+    }, targetWords, wholeDocument, approximateTarget)
   }, [handleRewrite, onSettled])
 
   // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
@@ -401,7 +401,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
           scaleLoadingOperation={zoomPhase === 'stream' ? rewriteOperation : null}
           scaleReviewOperation={keepReviewActions ? rewriteOperation : null}
           disabled={!content.trim() || isLoading || overlayOpen || !!activeButton}
-          onZoom={(operation, degree, targetWords) => start(operation, degree, targetWords, true)}
+          onZoom={(operation, degree, targetWords, approximateTarget) => start(operation, degree, targetWords, true, approximateTarget)}
         />
       </div>
       <div className="document-page">
