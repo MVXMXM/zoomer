@@ -32,7 +32,7 @@ type ControlBarProps = {
   review?: { onAccept: () => void; onReject: () => void }
 }
 
-const notchSoundVoices = 8
+const notchSoundMinIntervalMs = 32
 const notchSoundVolumeRecoveryMs = 120
 
 const zoomStops = [
@@ -94,10 +94,57 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
     return () => window.clearTimeout(timer)
   }, [dragging, neutralIndex, sourceWords, tick])
   const scaleRef = useRef<HTMLDivElement>(null)
-  const notchSounds = useRef<(HTMLAudioElement | null)[]>([])
+  const notchAudio = useRef<{ context: AudioContext; buffer: AudioBuffer | null } | null>(null)
   const lastNotchSoundTrigger = useRef(-Infinity)
+  const traversedTicks = useRef<{ ruler: HTMLElement; index: number } | null>(null)
   const loadingLabelRef = useRef<HTMLDivElement>(null)
-  const drag = useRef<{ ruler: HTMLElement; pointerId: number; x: number; scrollLeft: number } | null>(null)
+  const drag = useRef<{
+    ruler: HTMLElement
+    pointerId: number
+    x: number
+    bounds: DOMRect
+    scrollLeft: number
+    nextScrollLeft: number
+    frame: number | null
+  } | null>(null)
+  useEffect(() => () => {
+    const frame = drag.current?.frame
+    if (frame != null) window.cancelAnimationFrame(frame)
+  }, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    const prepareNotchSound = () => {
+      if (!notchAudio.current) {
+        const context = new AudioContext()
+        const audio = { context, buffer: null as AudioBuffer | null }
+        notchAudio.current = audio
+        void fetch('/sounds/zoom-notch.wav', { signal: controller.signal })
+          .then((response) => {
+            if (!response.ok) throw new Error('Could not load notch sound')
+            return response.arrayBuffer()
+          })
+          .then((data) => context.decodeAudioData(data))
+          .then((buffer) => { audio.buffer = buffer })
+          .catch(() => {
+            // The ruler remains usable if the sound cannot be loaded.
+          })
+      }
+      const { context } = notchAudio.current
+      if (context.state !== 'running') void context.resume().catch(() => {})
+    }
+    document.addEventListener('pointerdown', prepareNotchSound, true)
+    document.addEventListener('pointerup', prepareNotchSound, true)
+    document.addEventListener('keydown', prepareNotchSound, true)
+    return () => {
+      document.removeEventListener('pointerdown', prepareNotchSound, true)
+      document.removeEventListener('pointerup', prepareNotchSound, true)
+      document.removeEventListener('keydown', prepareNotchSound, true)
+      controller.abort()
+      const audio = notchAudio.current
+      notchAudio.current = null
+      if (audio) void audio.context.close().catch(() => {})
+    }
+  }, [])
   const countAt = (position: number) => targets[position] ?? sourceWords
   const index = previewWords === undefined
     ? tick
@@ -105,16 +152,23 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
       Math.abs(target - previewWords) < Math.abs(countAt(closest) - previewWords) ? position : closest,
     neutralIndex)
   const playNotchSound = useCallback(() => {
+    const audio = notchAudio.current
+    if (!audio?.buffer || audio.context.state !== 'running') return
     const now = performance.now()
     const spacing = now - lastNotchSoundTrigger.current
+    if (spacing < notchSoundMinIntervalMs) return
+    const { context, buffer } = audio
+    const source = context.createBufferSource()
+    const gain = context.createGain()
+    source.buffer = buffer
+    gain.gain.value = 0.15 + 0.35 * Math.min(1, spacing / notchSoundVolumeRecoveryMs)
+    source.connect(gain).connect(context.destination)
+    source.onended = () => {
+      source.disconnect()
+      gain.disconnect()
+    }
     lastNotchSoundTrigger.current = now
-    const sound = notchSounds.current.find((voice) => voice && (voice.paused || voice.ended))
-    if (!sound) return
-    sound.currentTime = 0
-    sound.volume = 0.15 + 0.35 * Math.min(1, spacing / notchSoundVolumeRecoveryMs)
-    void sound.play().catch(() => {
-      // Audio playback can be blocked by the browser.
-    })
+    source.start()
   }, [])
   const previousPreview = useRef({ tick: index, active: previewing })
   useLayoutEffect(() => {
@@ -145,11 +199,23 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
   }, [loadingOperation])
 
   useLayoutEffect(() => {
-    const first = Math.min(neutralIndex, index)
-    const last = Math.max(neutralIndex, index)
-    scaleRef.current?.querySelectorAll('.maxos-slider-scale-tick').forEach((tick, position) => {
-      tick.toggleAttribute('data-zoom-traversed', position >= first && position <= last && position !== neutralIndex)
-    })
+    const ruler = scaleRef.current?.querySelector<HTMLElement>('.maxos-slider-scale-ruler')
+    if (!ruler) return
+    const previous = traversedTicks.current
+    const previousIndex = previous?.ruler === ruler ? previous.index : neutralIndex
+    const previousFirst = Math.min(previousIndex, neutralIndex)
+    const previousLast = Math.max(previousIndex, neutralIndex)
+    const first = Math.min(index, neutralIndex)
+    const last = Math.max(index, neutralIndex)
+
+    for (let position = Math.min(index, previousIndex); position <= Math.max(index, previousIndex); position++) {
+      const wasTraversed = position >= previousFirst && position <= previousLast && position !== neutralIndex
+      const isTraversed = position >= first && position <= last && position !== neutralIndex
+      if (wasTraversed !== isTraversed) {
+        ruler.children.item(position)?.toggleAttribute('data-zoom-traversed', isTraversed)
+      }
+    }
+    traversedTicks.current = { ruler, index }
   }, [neutralIndex, index, sourceWords, stepLevel])
 
   const wordCount = previewWords ?? countAt(index)
@@ -164,9 +230,18 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
   const clearDrag = (pointerId: number) => {
     const gesture = drag.current
     if (gesture?.pointerId !== pointerId) return
+    if (gesture.frame !== null) window.cancelAnimationFrame(gesture.frame)
     drag.current = null
     setDragging(false)
     delete gesture.ruler.dataset.dragging
+  }
+  const scrollAtPointer = (gesture: NonNullable<typeof drag.current>, clientX: number) => {
+    const { bounds, scrollLeft, x } = gesture
+    const delta = x - clientX
+    const travel = delta < 0 ? bounds.right - x : x - bounds.left
+    const progress = Math.min(1, Math.abs(delta) / Math.max(1, travel))
+    const endScroll = delta < 0 ? 0 : lastIndex * tickWidth
+    return scrollLeft + (endScroll - scrollLeft) * progress
   }
 
   return (
@@ -179,35 +254,50 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
         if (!event.isPrimary || event.button !== 0 || !(event.target instanceof Element)) return
         const ruler = event.target.closest<HTMLElement>('[role="slider"]')
         if (!ruler) return
+        if (event.pointerType === 'touch') event.preventDefault()
         event.stopPropagation()
         setDragging(true)
         ruler.setPointerCapture(event.pointerId)
-        drag.current = { ruler, pointerId: event.pointerId, x: event.clientX, scrollLeft: ruler.scrollLeft }
+        const scrollLeft = ruler.scrollLeft
+        drag.current = {
+          ruler,
+          pointerId: event.pointerId,
+          x: event.clientX,
+          bounds: ruler.getBoundingClientRect(),
+          scrollLeft,
+          nextScrollLeft: scrollLeft,
+          frame: null,
+        }
       }}
       onPointerMoveCapture={(event) => {
         const gesture = drag.current
         if (gesture?.pointerId !== event.pointerId) return
         event.stopPropagation()
-        const delta = gesture.x - event.clientX
-        const distance = Math.abs(delta)
-        if (distance < 1 && !('dragging' in gesture.ruler.dataset)) return
-        const { ruler, scrollLeft, x } = gesture
-        const bounds = ruler.getBoundingClientRect()
-        const travel = delta < 0 ? bounds.right - x : x - bounds.left
-        const progress = Math.min(1, distance / Math.max(1, travel))
-        const endScroll = delta < 0 ? 0 : lastIndex * tickWidth
-        ruler.dataset.dragging = ''
-        ruler.scrollLeft = scrollLeft + (endScroll - scrollLeft) * progress
+        const { ruler } = gesture
+        const distance = Math.abs(gesture.x - event.clientX)
+        const dragThreshold = event.pointerType === 'touch' ? 4 : 1
+        if (!('dragging' in ruler.dataset)) {
+          if (distance < dragThreshold) return
+          ruler.dataset.dragging = ''
+        }
+        gesture.nextScrollLeft = scrollAtPointer(gesture, event.clientX)
+        if (gesture.frame !== null) return
+        gesture.frame = window.requestAnimationFrame(() => {
+          gesture.frame = null
+          ruler.scrollLeft = gesture.nextScrollLeft
+        })
       }}
       onPointerUpCapture={(event) => {
         const gesture = drag.current
         if (gesture?.pointerId !== event.pointerId) return
         event.stopPropagation()
-        const { ruler } = gesture
+        const { ruler, bounds } = gesture
         const dragged = 'dragging' in ruler.dataset
-        const bounds = ruler.getBoundingClientRect()
-        const offset = dragged ? 0 : event.clientX - (bounds.left + bounds.width / 2)
-        const target = Math.max(0, Math.min(lastIndex, Math.round((ruler.scrollLeft + offset) / tickWidth)))
+        const position = dragged
+          ? scrollAtPointer(gesture, event.clientX)
+          : ruler.scrollLeft + event.clientX - (bounds.left + bounds.width / 2)
+        const target = Math.max(0, Math.min(lastIndex, Math.round(position / tickWidth)))
+        if (dragged) ruler.scrollLeft = target * tickWidth
         clearDrag(event.pointerId)
         if (dragged) apply(target)
         else updateTick(target)
@@ -235,14 +325,6 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
         updateTick(Math.max(0, Math.min(lastIndex, index + direction)))
       }}
     >
-      {Array.from({ length: notchSoundVoices }, (_, voice) => (
-        <audio
-          key={voice}
-          ref={(element) => { notchSounds.current[voice] = element }}
-          src="/sounds/zoom-notch.wav"
-          preload="auto"
-        />
-      ))}
       <motion.div
         className="zoom-scale-ruler-content"
         inert={disabled || previewing}
@@ -595,6 +677,9 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
                       }}
                       onLostPointerCapture={(event) => {
                         if (event.target === event.currentTarget && pointerId.current === event.pointerId) clearDrag()
+                      }}
+                      onPointerCancel={(event) => {
+                        if (pointerId.current === event.pointerId) clearDrag()
                       }}
                     >
                       <span aria-hidden="true" className="zoom-slider-track">
