@@ -230,12 +230,13 @@ body {
   height: 100%;
 }
 
-.selection-segments .segmented-controller:not(:has(button[aria-pressed='true'])) .segmented-controller-indicator {
-  visibility: hidden;
+.review-segments .maxos-kbd {
+  --border: var(--slate-300);
+  --background-alt: var(--slate-100);
+  margin-inline-start: 8px;
 }
 
-/* Lucide icons also appear in maxOS's clipped copy of the active label. */
-.selection-segments :is(.segmented-controller-button, .segmented-controller-label)::after {
+.review-segments .segmented-controller-button::after {
   content: var(--segment-icon-content, none);
   order: -1;
   flex: 0 0 18px;
@@ -245,12 +246,12 @@ body {
   mask: var(--segment-icon) center / contain no-repeat;
 }
 
-.review-segments :is(button.segmented-controller-button:nth-of-type(1), .segmented-controller-label:nth-child(1)) {
+.review-segments .segmented-controller-button:nth-of-type(1) {
   --segment-icon-content: '';
   --segment-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9%2014%204%209l5-5M4%209h10a6%206%200%200%201%200%2012h-3'%2F%3E%3C%2Fsvg%3E");
 }
 
-.review-segments :is(button.segmented-controller-button:nth-of-type(2), .segmented-controller-label:nth-child(2)) {
+.review-segments .segmented-controller-button:nth-of-type(2) {
   --segment-icon-content: '';
   --segment-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'm20%206-11%2011-5-5'%2F%3E%3C%2Fsvg%3E");
 }

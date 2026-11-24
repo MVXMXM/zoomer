@@ -1,6 +1,6 @@
 'use client'
 
-import { SegmentedController, SliderScale } from '@mvxmxm/maxos'
+import { Kbd, SliderScale } from '@mvxmxm/maxos'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import { Microscope, Telescope } from 'lucide-react'
@@ -31,11 +31,6 @@ type ControlBarProps = {
   onZoom: (operation: ZoomOperation, degree?: ZoomDegree, targetWords?: number, approximateTarget?: boolean) => void
   review?: { onAccept: () => void; onReject: () => void }
 }
-
-const reviewSegments = [
-  { id: 'reject', label: 'Undo' },
-  { id: 'accept', label: 'Keep' },
-] as const
 
 const notchSoundVoices = 8
 const notchSoundVolumeRecoveryMs = 120
@@ -450,16 +445,6 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
     observer.observe(content)
     return () => observer.disconnect()
   }, [inline])
-  useEffect(() => {
-    if (!reviewing || !visible) return
-    const [reject, accept] = fieldsetRef.current?.querySelectorAll('button') ?? []
-    reject?.setAttribute('aria-keyshortcuts', 'Escape')
-    accept?.setAttribute('aria-keyshortcuts', 'Enter')
-    return () => {
-      reject?.removeAttribute('aria-keyshortcuts')
-      accept?.removeAttribute('aria-keyshortcuts')
-    }
-  }, [reviewing, visible])
   const menuMotion = settings.motion
   const hiddenOffset = (anchor?.placement === 'above' ? 1 : -1) * menuMotion.distance
 
@@ -513,16 +498,14 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
           className={`relative m-0 h-full min-w-0 border-0 p-0 ${inline ? 'w-full' : 'left-1/2 w-max -translate-x-1/2'}`}
         >
           {reviewing ? (
-            <SegmentedController<string>
-              bordered={false}
-              label="Zoom result"
-              items={reviewSegments}
-              value="idle"
-              onChange={(value) => {
-                if (value === 'accept') review?.onAccept()
-                if (value === 'reject') review?.onReject()
-              }}
-            />
+            <div className="segmented-controller" role="group" aria-label="Zoom result">
+              <button type="button" className="segmented-controller-button" aria-keyshortcuts="Escape" onClick={review.onReject}>
+                Undo <Kbd aria-hidden="true">Esc</Kbd>
+              </button>
+              <button type="button" className="segmented-controller-button" aria-keyshortcuts="Enter" onClick={review.onAccept}>
+                Keep <Kbd aria-hidden="true">Enter</Kbd>
+              </button>
+            </div>
           ) : (
             <div className={inline ? 'w-full' : 'w-[min(18rem,calc(100vw-2rem))]'}>
               {inline ? (

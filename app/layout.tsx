@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "@mvxmxm/maxos/segmented-controller.css";
+import "@mvxmxm/maxos/kbd.css";
 import "@mvxmxm/maxos/slider-scale.css";
 import "./globals.css";
 
