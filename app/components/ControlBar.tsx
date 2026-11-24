@@ -161,13 +161,12 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
   const direction = loadingOperation ?? reviewOperation ?? (wordCount < sourceWords ? 'contract' : wordCount > sourceWords ? 'expand' : null)
   const reduceMotion = useReducedMotion()
   const fadeTransition = { duration: reduceMotion ? 0 : 0.22, ease: 'easeOut' } as const
-  const [typedTarget, setTypedTarget] = useState('')
   const targetRange = index === neutralIndex ? null : rulerTargetRange(sourceWords, countAt(index))
-  const submitTarget = (target: number, approximate: boolean) => {
+  const apply = (position: number) => {
+    const target = countAt(position)
     if (disabled || previewing || sourceWords === 0 || target === sourceWords) return
-    onZoom(target < sourceWords ? 'contract' : 'expand', undefined, target, approximate)
+    onZoom(target < sourceWords ? 'contract' : 'expand', undefined, target, true)
   }
-  const apply = (position: number) => submitTarget(countAt(position), true)
   const clearDrag = (pointerId: number) => {
     const gesture = drag.current
     if (gesture?.pointerId !== pointerId) return
@@ -282,27 +281,6 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
             <span className="zoom-scale-target-range"> ({targetRange.min}–{targetRange.max})</span>
           )}
         </button>
-        {sourceWords > 0 && !reviewOperation && (
-          <form className="zoom-scale-exact-target" onSubmit={(event) => {
-            event.preventDefault()
-            const target = Number(typedTarget)
-            if (!Number.isInteger(target) || target < 1 || target > MAX_EXACT_ZOOM_WORDS || target === sourceWords) return
-            submitTarget(target, false)
-            setTypedTarget('')
-          }}>
-            <input
-              aria-label={`Exact target in words, 1 to ${MAX_EXACT_ZOOM_WORDS}`}
-              type="number"
-              min={1}
-              max={MAX_EXACT_ZOOM_WORDS}
-              required
-              placeholder="Exact"
-              value={typedTarget}
-              onChange={(event) => setTypedTarget(event.target.value)}
-            />
-            <button type="submit" disabled={!typedTarget || Number(typedTarget) === sourceWords}>Go</button>
-          </form>
-        )}
       </motion.div>
       <span
         className="zoom-scale-icon zoom-scale-icon--start"

@@ -44,6 +44,9 @@ export async function POST(req: Request) {
     const approximate = hasTarget && approximateTarget === true
     const exact = hasTarget && !approximate
     const targetLimit = approximate ? MAX_RULER_TARGET_WORDS : MAX_EXACT_ZOOM_WORDS
+    if (exact && sourceWords > MAX_EXACT_ZOOM_WORDS) {
+      return new Response(`Exact targets require a passage of at most ${MAX_EXACT_ZOOM_WORDS} words.`, { status: 400 })
+    }
     if (hasTarget && (
       typeof requestedTarget !== 'number' || !Number.isInteger(requestedTarget) ||
       requestedTarget < 1 || requestedTarget > targetLimit ||

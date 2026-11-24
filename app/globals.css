@@ -240,9 +240,6 @@ body {
 }
 
 .zoom-scale-headline {
-  display: flex;
-  align-items: center;
-  gap: 4px;
   position: absolute;
   top: var(--zoom-scale-label-y);
   left: 50%;
@@ -263,25 +260,6 @@ body {
 
 .zoom-scale-target-range {
   color: var(--slate-600);
-}
-
-.zoom-scale-exact-target {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  pointer-events: auto;
-  font-size: 12px;
-}
-
-.zoom-scale-exact-target input {
-  width: 4.5em;
-  padding: 2px 4px;
-  border: 1px solid var(--slate-400);
-  border-radius: 4px;
-}
-
-.zoom-scale-exact-target button:disabled {
-  opacity: 0.45;
 }
 
 .zoom-scale-icon {
