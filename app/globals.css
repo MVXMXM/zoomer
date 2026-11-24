@@ -243,6 +243,12 @@ body {
   text-transform: none;
 }
 
+@media (hover: none) and (pointer: coarse) {
+  :is(.document-zoom-control, .selection-segments) .maxos-kbd {
+    display: none;
+  }
+}
+
 .review-segments .segmented-controller-button:hover::before {
   opacity: 1;
 }

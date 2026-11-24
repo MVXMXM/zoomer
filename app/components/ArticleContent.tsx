@@ -14,6 +14,7 @@ import { wordCount, type RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const VIEWPORT_MARGIN = 12
+const TOUCH_INPUT_QUERY = '(hover: none) and (pointer: coarse)'
 
 function playRewriteSound(sound: HTMLAudioElement | null) {
   if (!sound) return
@@ -29,10 +30,20 @@ type ControlAnchor = {
 
 function getControlAnchor(editor: HTMLDivElement, width: number, height: number, gap: number): ControlAnchor | null {
   const selected = editorSelection(editor)
+  if (!selected || selected.start === selected.end) return null
+
+  const visibleViewport = window.visualViewport
+  if (visibleViewport && window.matchMedia(TOUCH_INPUT_QUERY).matches) {
+    return {
+      x: visibleViewport.offsetLeft + visibleViewport.width / 2,
+      y: visibleViewport.offsetTop + visibleViewport.height - VIEWPORT_MARGIN - height,
+      placement: 'above',
+    }
+  }
+
   const viewport = editor.getBoundingClientRect()
-  const rects = selected && selected.start !== selected.end
-    ? Array.from(selected.range.getClientRects()).filter((rect) => rect.width && rect.bottom > viewport.top && rect.top < viewport.bottom)
-    : []
+  const rects = Array.from(selected.range.getClientRects())
+    .filter((rect) => rect.width && rect.bottom > viewport.top && rect.top < viewport.bottom)
   if (!rects.length) return null
 
   const first = rects[0]
@@ -238,8 +249,13 @@ export function ArticleContent({
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(updateControlAnchor)
     }
+    const visibleViewport = window.visualViewport
+    const touchInput = window.matchMedia(TOUCH_INPUT_QUERY)
     window.addEventListener('resize', update)
     window.addEventListener('scroll', update, true)
+    visibleViewport?.addEventListener('resize', update)
+    visibleViewport?.addEventListener('scroll', update)
+    touchInput.addEventListener('change', update)
     const observer = new ResizeObserver(update)
     if (controlMenuRef.current) observer.observe(controlMenuRef.current)
     return () => {
@@ -247,6 +263,9 @@ export function ArticleContent({
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', update)
       window.removeEventListener('scroll', update, true)
+      visibleViewport?.removeEventListener('resize', update)
+      visibleViewport?.removeEventListener('scroll', update)
+      touchInput.removeEventListener('change', update)
     }
   }, [hasSelection, overlayOpen, updateControlAnchor])
 
