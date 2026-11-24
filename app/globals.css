@@ -16,8 +16,6 @@
   --slate-900: #0f172b;
   --slate-950: #020618;
   --accent: #00bbff;
-  --loading-text-color: #00787c;
-  --loading-text-highlight: #003841;
   --background: var(--slate-50);
   --foreground: var(--slate-900);
   --surface: var(--slate-0);
@@ -42,8 +40,6 @@
   --slate-800: #dbe4f1;
   --slate-900: #e8eef7;
   --slate-950: #f5f8fc;
-  --loading-text-color: #53b5bc;
-  --loading-text-highlight: #b2fff2;
   --surface-shadow: 0 0 0 1px var(--hairline), 0 2px 6px rgb(0 0 0 / 25%);
 }
 
@@ -797,11 +793,12 @@ fieldset:disabled .zoom-slider {
 }
 
 .text-shimmer {
+  --shimmer-fade: color-mix(in srgb, var(--accent) 38%, transparent);
   background-image: linear-gradient(
     90deg,
-    var(--loading-text-color) 0% 15%,
-    var(--loading-text-highlight) 46% 54%,
-    var(--loading-text-color) 85% 100%
+    var(--shimmer-fade) 0% 15%,
+    var(--accent) 46% 54%,
+    var(--shimmer-fade) 85% 100%
   );
   background-size: 200% 100%;
   background-repeat: repeat-x;
@@ -851,8 +848,8 @@ fieldset:disabled .zoom-slider {
   .text-shimmer {
     animation: none;
     background: none;
-    color: var(--loading-text-color);
-    -webkit-text-fill-color: var(--loading-text-color);
+    color: color-mix(in srgb, var(--accent), var(--foreground));
+    -webkit-text-fill-color: currentColor;
   }
 
   .review-in {
