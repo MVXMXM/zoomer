@@ -61,7 +61,13 @@ function getControlAnchor(editor: HTMLDivElement, width: number, height: number,
 
 type ZoomPhase = 'idle' | BlurPhase
 
-export function ArticleContent({ placeholder }: { placeholder: string }) {
+export function ArticleContent({
+  initialContent,
+  placeholder,
+}: {
+  initialContent: string
+  placeholder: string
+}) {
   const { height: controlHeight, selectionGap } = SELECTION_MENU_SETTINGS.shape
   const controlMenuRef = useRef<HTMLDivElement>(null)
   const {
@@ -78,7 +84,7 @@ export function ArticleContent({ placeholder }: { placeholder: string }) {
     abortRewrite,
     undo,
     redo,
-  } = useArticleEditor()
+  } = useArticleEditor(initialContent)
   const pendingMarkup = useRef<{ source: string; offset: number; marker: string } | null>(null)
   const placeholderRef = useRef<HTMLDivElement>(null)
   const fadeRef = useRef<HTMLDivElement>(null)
