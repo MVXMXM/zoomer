@@ -230,10 +230,11 @@ body {
   height: 100%;
 }
 
-.review-segments .maxos-kbd {
+:is(.review-segments, .zoom-scale-loading) .maxos-kbd {
   --border: var(--slate-300);
   --background-alt: var(--slate-100);
   margin-inline-start: 8px;
+  text-transform: none;
 }
 
 .review-segments .segmented-controller-button::after {
@@ -399,7 +400,8 @@ body {
 }
 
 .zoom-scale-loading > span > span {
-  display: block;
+  display: flex;
+  align-items: center;
   animation: zoom-scale-loading-in 180ms ease-out 220ms both;
 }
 

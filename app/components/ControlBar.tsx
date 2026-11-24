@@ -301,7 +301,13 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
       )}
       {loadingOperation && (
         <div ref={loadingLabelRef} role="status" className="zoom-scale-loading zoom-slider-readout">
-          <span><span>{loadingOperation === 'contract' ? 'Zooming out' : 'Zooming in'}</span></span>
+          <span>
+            <span>
+              {loadingOperation === 'contract' ? 'Zooming out' : 'Zooming in'}
+              <Kbd aria-hidden="true">esc</Kbd>
+            </span>
+          </span>
+          <span className="sr-only">Press Escape to stop generating.</span>
         </div>
       )}
       {reviewOperation && previousWords !== undefined && (

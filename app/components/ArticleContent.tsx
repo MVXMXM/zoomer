@@ -332,6 +332,10 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && phaseRef.current === 'stream' && abortRewrite()) {
+        event.preventDefault()
+        return
+      }
       const withCmd = event.metaKey || event.ctrlKey
       if (zoomPhase === 'accept' || zoomPhase === 'reject') {
         const key = event.key.toLowerCase()
