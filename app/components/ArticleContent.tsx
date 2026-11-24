@@ -255,6 +255,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   const onSettled = useCallback(() => {
     const scrollTop = reviewScrollRef.current?.scrollTop
     const scrollLeft = reviewScrollRef.current?.scrollLeft
+    const finishedReview = phaseRef.current === 'accept' || phaseRef.current === 'reject'
     phaseRef.current = 'idle'
     setZoomPhase('idle')
     setRewriteOperation(null)
@@ -270,10 +271,14 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
       const editor = editorRef.current
       if (!editor) return
       editor.focus({ preventScroll: true })
+      if (finishedReview && editorSelection(editor)?.range.collapsed === false) {
+        window.getSelection()?.collapseToEnd()
+        handleSelectionChange()
+      }
       if (scrollTop !== undefined) editor.scrollTop = scrollTop
       if (scrollLeft !== undefined) editor.scrollLeft = scrollLeft
     })
-  }, [editorRef])
+  }, [editorRef, handleSelectionChange])
 
   const holdReview = useCallback(() => {
     if (phaseRef.current !== 'arrive') return
