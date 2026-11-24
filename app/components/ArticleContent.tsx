@@ -149,11 +149,15 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   const [historyMorph, setHistoryMorph] = useState(false)
   const [zoomPhase, setZoomPhase] = useState<ZoomPhase>('idle')
   const [rewriteOperation, setRewriteOperation] = useState<ZoomOperation | null>(null)
+  const [selectionPreviewWords, setSelectionPreviewWords] = useState<number | null>(null)
   const phaseRef = useRef<ZoomPhase>('idle')
   phaseRef.current = zoomPhase
   const showDock = zoomPhase === 'arrive' || zoomPhase === 'review'
   const keepReviewActions = showDock || zoomPhase === 'accept' || zoomPhase === 'reject'
   const documentControlWords = wordCount(zoomPhase === 'stream' ? oldText : keepReviewActions ? destText : content)
+  const documentPreviewWords = selectionPreviewWords !== null && hasSelection && !overlayOpen && !isLoading
+    ? documentControlWords + selectionPreviewWords - selectionWordCount
+    : undefined
   const previousDocumentWords = keepReviewActions ? wordCount(oldText) : undefined
   const overlayPhase: BlurPhase = historyMorph ? 'history' : zoomPhase === 'idle' ? 'stream' : zoomPhase
   const [controlAnchor, setControlAnchor] = useState<ControlAnchor | null>(null)
@@ -378,6 +382,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
           inline
           sourceWords={documentControlWords}
           previousWords={previousDocumentWords}
+          previewWords={documentPreviewWords}
           settings={SELECTION_MENU_SETTINGS}
           visible
           scaleLoadingOperation={zoomPhase === 'stream' ? rewriteOperation : null}
@@ -457,6 +462,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
             review={keepReviewActions ? { onAccept: acceptReview, onReject: rejectReview } : undefined}
             disabled={isLoading || !!activeButton}
             onZoom={start}
+            onPreviewWordsChange={setSelectionPreviewWords}
           />
 
           {error && (

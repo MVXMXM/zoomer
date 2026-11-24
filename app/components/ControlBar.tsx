@@ -1,7 +1,7 @@
 'use client'
 
 import { SegmentedController, SliderScale } from '@mvxmxm/maxos'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import { Microscope, Telescope } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -18,6 +18,8 @@ type ControlBarProps = {
   inline?: boolean
   scaleLoadingOperation?: ZoomOperation | null
   scaleReviewOperation?: ZoomOperation | null
+  previewWords?: number
+  onPreviewWordsChange?: (words: number | null) => void
   settings: SelectionMenuSettings
   visible: boolean
   anchor?: {
@@ -34,6 +36,9 @@ const reviewSegments = [
   { id: 'reject', label: 'Reject' },
   { id: 'accept', label: 'Accept' },
 ] as const
+
+const notchSoundVoices = 8
+const notchSoundVolumeRecoveryMs = 120
 
 const zoomStops = [
   ['contract', 3, 'Strong distillation'],
@@ -63,11 +68,12 @@ function WordCountComparison({ sourceWords, wordCount }: { sourceWords: number; 
   )
 }
 
-function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previousWords, disabled, loadingOperation, reviewOperation, onZoom }: {
+function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previousWords, previewWords, disabled, loadingOperation, reviewOperation, onZoom }: {
   stops: ReturnType<typeof zoomTargets>
   neutralIndex: number
   sourceWords: number
   previousWords?: number
+  previewWords?: number
   disabled: boolean
   loadingOperation?: ZoomOperation | null
   reviewOperation?: ZoomOperation | null
@@ -76,22 +82,68 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
   const tickWidth = 16 // SliderScale's fixed tick width.
   const exact = sourceWords > 0 && sourceWords <= MAX_EXACT_ZOOM_WORDS
   const neutralIndex = exact ? sourceWords - 1 : presetNeutralIndex
-  const lastIndex = exact ? MAX_EXACT_ZOOM_WORDS - 1 : stops.length
+  const lastIndex = exact ? Math.max(MAX_EXACT_ZOOM_WORDS, previewWords ?? 0) - 1 : stops.length
   const ticksPerStop = exact ? 1 : 2
   const lastTick = lastIndex * ticksPerStop
   const initialTick = neutralIndex * ticksPerStop
   const [tick, setTick] = useState(initialTick)
   const loading = Boolean(loadingOperation)
-  const [previous, setPrevious] = useState({ sourceWords, loading })
-  if (previous.sourceWords !== sourceWords || previous.loading !== loading) {
-    setPrevious({ sourceWords, loading })
-    if (previous.sourceWords !== sourceWords || !loading) setTick(initialTick)
+  const previewing = previewWords !== undefined
+  const [previous, setPrevious] = useState({ sourceWords, loading, previewing })
+  if (previous.sourceWords !== sourceWords || previous.loading !== loading || previous.previewing !== previewing) {
+    setPrevious({ sourceWords, loading, previewing })
+    if (previous.sourceWords !== sourceWords || !loading || previewing) setTick(initialTick)
   }
   const scaleRef = useRef<HTMLDivElement>(null)
+  const notchSounds = useRef<(HTMLAudioElement | null)[]>([])
+  const lastNotchSoundTrigger = useRef(-Infinity)
   const loadingLabelRef = useRef<HTMLDivElement>(null)
   const drag = useRef<{ ruler: HTMLElement; pointerId: number; x: number; scrollLeft: number } | null>(null)
-  const index = Math.round(tick / ticksPerStop)
+  const stopAt = (position: number) => position === neutralIndex
+    ? undefined
+    : stops[position < neutralIndex ? position : position - 1]
+  const countAt = (position: number) => exact ? position + 1 : stopAt(position)?.target ?? sourceWords
+  let index = Math.round(tick / ticksPerStop)
+  if (previewWords !== undefined) {
+    index = exact ? previewWords - 1 : neutralIndex
+    if (!exact && previewWords !== sourceWords) {
+      const step = previewWords < sourceWords ? -1 : 1
+      let distance = Infinity
+      for (let position = neutralIndex + step; position >= 0 && position <= lastIndex; position += step) {
+        const difference = Math.abs(countAt(position) - previewWords)
+        if (difference >= distance) break
+        distance = difference
+        index = position
+      }
+    }
+  }
   const previewTick = index * ticksPerStop
+  const playNotchSound = useCallback(() => {
+    const now = performance.now()
+    const spacing = now - lastNotchSoundTrigger.current
+    lastNotchSoundTrigger.current = now
+    const sound = notchSounds.current.find((voice) => voice && (voice.paused || voice.ended))
+    if (!sound) return
+    sound.currentTime = 0
+    sound.volume = 0.15 + 0.35 * Math.min(1, spacing / notchSoundVolumeRecoveryMs)
+    void sound.play().catch(() => {
+      // Audio playback can be blocked by the browser.
+    })
+  }, [])
+  const previousPreview = useRef({ tick: previewTick, active: previewing })
+  useLayoutEffect(() => {
+    const previous = previousPreview.current
+    if (!disabled && (previewing || previous.active) && previewTick !== previous.tick) playNotchSound()
+    previousPreview.current = { tick: previewTick, active: previewing }
+  }, [disabled, playNotchSound, previewing, previewTick])
+
+  const updateTick = (nextTick: number) => {
+    if (previewing) return
+    if (!disabled && Math.round(nextTick / ticksPerStop) !== index) {
+      playNotchSound()
+    }
+    setTick(nextTick)
+  }
 
   useLayoutEffect(() => {
     const scale = scaleRef.current
@@ -114,12 +166,8 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
     })
   }, [initialTick, previewTick])
 
-  const stopAt = (position: number) => position === neutralIndex
-    ? undefined
-    : stops[position < neutralIndex ? position : position - 1]
-  const countAt = (position: number) => exact ? position + 1 : stopAt(position)?.target ?? sourceWords
-  const wordCount = countAt(index)
-  const direction = loadingOperation ?? reviewOperation ?? (index < neutralIndex ? 'contract' : index > neutralIndex ? 'expand' : null)
+  const wordCount = previewWords ?? countAt(index)
+  const direction = loadingOperation ?? reviewOperation ?? (wordCount < sourceWords ? 'contract' : wordCount > sourceWords ? 'expand' : null)
   const reduceMotion = useReducedMotion()
   const fadeTransition = { duration: reduceMotion ? 0 : 0.22, ease: 'easeOut' } as const
   const apply = (position: number) => {
@@ -179,7 +227,7 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
         const target = Math.max(0, Math.min(lastIndex, Math.round((ruler.scrollLeft + offset) / (tickWidth * ticksPerStop))))
         clearDrag(event.pointerId)
         if (dragged) apply(target)
-        else setTick(target * ticksPerStop)
+        else updateTick(target * ticksPerStop)
       }}
       onPointerCancel={(event) => { clearDrag(event.pointerId) }}
       onLostPointerCapture={(event) => { clearDrag(event.pointerId) }}
@@ -195,12 +243,20 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
         if (!direction) return
         event.preventDefault()
         event.stopPropagation()
-        setTick(Math.max(0, Math.min(lastTick, (index + direction) * ticksPerStop)))
+        updateTick(Math.max(0, Math.min(lastTick, (index + direction) * ticksPerStop)))
       }}
     >
+      {Array.from({ length: notchSoundVoices }, (_, voice) => (
+        <audio
+          key={voice}
+          ref={(element) => { notchSounds.current[voice] = element }}
+          src="/sounds/zoom-notch.wav"
+          preload="auto"
+        />
+      ))}
       <motion.div
         className="zoom-scale-ruler-content"
-        inert={disabled}
+        inert={disabled || previewing}
         initial={false}
         animate={{ opacity: loadingOperation || reviewOperation ? 0 : 1 }}
         transition={fadeTransition}
@@ -209,8 +265,8 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
           key={sourceWords}
           label="Semantic zoom target in words"
           count={lastTick + 1}
-          value={tick}
-          onChange={setTick}
+          value={previewing ? previewTick : tick}
+          onChange={updateTick}
           tickLabel={(position) => {
             if (exact) {
               const count = countAt(position)
@@ -220,14 +276,14 @@ function ZoomScale({ stops, neutralIndex: presetNeutralIndex, sourceWords, previ
             return String(countAt(position / ticksPerStop))
           }}
           formatValue={(position) => {
-            const count = countAt(Math.round(position / ticksPerStop))
+            const count = previewWords ?? countAt(Math.round(position / ticksPerStop))
             return `${count} ${count === 1 ? 'word' : 'words'}`
           }}
         />
       </motion.div>
       <motion.div
         className="zoom-scale-headline"
-        inert={disabled}
+        inert={disabled || previewing}
         initial={false}
         animate={{ opacity: loadingOperation ? 0 : 1 }}
         transition={fadeTransition}
@@ -283,7 +339,7 @@ function updateGeneralNotch(slider: HTMLDivElement | null) {
   notch.toggleAttribute('data-overlapping', !hasClearance || overlapsContent)
 }
 
-export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inline, scaleLoadingOperation, scaleReviewOperation, settings, visible, anchor, disabled, onZoom, review }: ControlBarProps) {
+export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inline, scaleLoadingOperation, scaleReviewOperation, previewWords, onPreviewWordsChange, settings, visible, anchor, disabled, onZoom, review }: ControlBarProps) {
   const stops = zoomTargets(sourceWords)
   const availableStops = zoomStops.filter((stop) =>
     !stop || stops.some(({ operation, degree }) => operation === stop[0] && degree === stop[1]),
@@ -316,6 +372,12 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
   const activeTarget = activeStop && stops.find(({ operation, degree }) => operation === activeStop[0] && degree === activeStop[1])
   const previewTarget = dragIndex === null ? hoveredTarget ?? focusedTarget : activeTarget
   const wordCount = exact ? activeIndex + 1 : previewTarget?.target ?? sourceWords
+  const wordChange = wordCount - sourceWords
+  const displayedCount = wordChange === 0 ? sourceWords : Math.abs(wordChange)
+  const selectionPreviewWords = visible && !disabled && !review && wordCount !== sourceWords ? wordCount : null
+  useLayoutEffect(() => {
+    onPreviewWordsChange?.(selectionPreviewWords)
+  }, [onPreviewWordsChange, selectionPreviewWords])
   const generalSliderRef = useRef<HTMLDivElement>(null)
   const generalContent = (
     <>
@@ -334,7 +396,11 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
         />
       )}
       <span className="zoom-slider-readout zoom-slider-value">
-        <WordCountComparison sourceWords={sourceWords} wordCount={wordCount} />
+        <span>
+          {wordChange < 0 ? '− ' : wordChange > 0 ? '+ ' : ''}
+          <AnimatedWordCount count={displayedCount} />
+          {' '}{displayedCount === 1 ? 'word' : 'words'}
+        </span>
       </span>
     </>
   )
@@ -471,6 +537,7 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
                   neutralIndex={neutralIndex}
                   sourceWords={sourceWords}
                   previousWords={previousWords}
+                  previewWords={previewWords}
                   disabled={disabled}
                   loadingOperation={scaleLoadingOperation}
                   reviewOperation={scaleReviewOperation}
