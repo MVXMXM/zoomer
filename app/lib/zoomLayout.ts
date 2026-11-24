@@ -1,4 +1,5 @@
 import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
+import type { InlineRun } from '@/app/lib/editorDocument'
 
 export type WordHome = {
   word: string
@@ -154,7 +155,7 @@ export function tokenizeForLayout(text: string): { tokens: LayoutToken[]; lead: 
 }
 
 export function placeWords(
-  pieces: { text: string; trailing: string }[],
+  pieces: { text: string; trailing: string; runs?: InlineRun[] }[],
   width: number,
   lead = '',
 ): { x: number; y: number }[] {
@@ -169,14 +170,18 @@ export function placeWords(
   for (const piece of pieces) {
     const span = document.createElement('span')
     const newlineAt = piece.trailing.indexOf('\n')
-    if (newlineAt === -1) {
-      span.textContent = piece.text + piece.trailing
-      root.appendChild(span)
-    } else {
-      span.textContent = piece.text + piece.trailing.slice(0, newlineAt)
-      root.appendChild(span)
-      root.appendChild(document.createTextNode(piece.trailing.slice(newlineAt)))
+    for (const run of piece.runs ?? [{ text: piece.text }]) {
+      if (run.tag) {
+        const element = document.createElement(run.tag)
+        element.textContent = run.text
+        span.append(element)
+      } else {
+        span.append(run.text)
+      }
     }
+    span.append(newlineAt === -1 ? piece.trailing : piece.trailing.slice(0, newlineAt))
+    root.appendChild(span)
+    if (newlineAt !== -1) root.append(piece.trailing.slice(newlineAt))
     spans.push(span)
   }
   void root.offsetWidth

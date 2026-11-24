@@ -237,6 +237,10 @@ body {
   text-transform: none;
 }
 
+.review-segments .segmented-controller-button:hover::before {
+  opacity: 1;
+}
+
 .review-segments .segmented-controller-button::after {
   content: var(--segment-icon-content, none);
   order: -1;
@@ -283,6 +287,10 @@ body {
 
 .zoom-scale .maxos-slider-scale-pointer {
   display: none;
+}
+
+.zoom-scale .maxos-slider-scale-marker {
+  margin-top: -4px;
 }
 
 .document-zoom-slot {
@@ -785,15 +793,12 @@ fieldset:disabled .zoom-slider {
 }
 
 .text-shimmer {
+  --shimmer-fade: color-mix(in srgb, var(--accent) 38%, transparent);
   background-image: linear-gradient(
     90deg,
-    var(--slate-500) 0%,
-    var(--slate-500) 15%,
-    var(--slate-600) 34%,
-    var(--slate-900) 50%,
-    var(--slate-600) 66%,
-    var(--slate-500) 85%,
-    var(--slate-500) 100%
+    var(--shimmer-fade) 0% 15%,
+    var(--accent) 46% 54%,
+    var(--shimmer-fade) 85% 100%
   );
   background-size: 200% 100%;
   background-repeat: repeat-x;
@@ -843,8 +848,8 @@ fieldset:disabled .zoom-slider {
   .text-shimmer {
     animation: none;
     background: none;
-    color: var(--slate-500);
-    -webkit-text-fill-color: var(--slate-500);
+    color: color-mix(in srgb, var(--accent), var(--foreground));
+    -webkit-text-fill-color: currentColor;
   }
 
   .review-in {

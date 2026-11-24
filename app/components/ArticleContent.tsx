@@ -15,6 +15,12 @@ import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const VIEWPORT_MARGIN = 12
 
+function playRewriteSound(sound: HTMLAudioElement | null) {
+  if (!sound) return
+  sound.currentTime = 0
+  void sound.play().catch(() => {})
+}
+
 type ControlAnchor = {
   x: number
   y: number
@@ -78,6 +84,10 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   const fadeRef = useRef<HTMLDivElement>(null)
   const width = useBoxWidth(editorRef)
   const reviewScrollRef = useRef<HTMLDivElement>(null)
+  const keepSoundRef = useRef<HTMLAudioElement>(null)
+  const undoSoundRef = useRef<HTMLAudioElement>(null)
+  const applySoundRef = useRef<HTMLAudioElement>(null)
+  const loadingSoundRef = useRef<HTMLAudioElement>(null)
   useLayoutEffect(() => {
     const editor = editorRef.current
     if (!editor) return
@@ -245,6 +255,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   const onSettled = useCallback(() => {
     const scrollTop = reviewScrollRef.current?.scrollTop
     const scrollLeft = reviewScrollRef.current?.scrollLeft
+    const finishedReview = phaseRef.current === 'accept' || phaseRef.current === 'reject'
     phaseRef.current = 'idle'
     setZoomPhase('idle')
     setRewriteOperation(null)
@@ -260,10 +271,14 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
       const editor = editorRef.current
       if (!editor) return
       editor.focus({ preventScroll: true })
+      if (finishedReview && editorSelection(editor)?.range.collapsed === false) {
+        window.getSelection()?.collapseToEnd()
+        handleSelectionChange()
+      }
       if (scrollTop !== undefined) editor.scrollTop = scrollTop
       if (scrollLeft !== undefined) editor.scrollLeft = scrollLeft
     })
-  }, [editorRef])
+  }, [editorRef, handleSelectionChange])
 
   const holdReview = useCallback(() => {
     if (phaseRef.current !== 'arrive') return
@@ -276,6 +291,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
     if (phase !== 'arrive' && phase !== 'review') return
     phaseRef.current = 'accept'
     setZoomPhase('accept')
+    playRewriteSound(keepSoundRef.current)
   }, [])
 
   const rejectReview = useCallback(() => {
@@ -284,6 +300,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
     if (!undo()) return
     phaseRef.current = 'reject'
     setZoomPhase('reject')
+    playRewriteSound(undoSoundRef.current)
   }, [undo])
 
   const playMorph = useCallback((from: string, to: string) => {
@@ -303,6 +320,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
     void handleRewrite(operation, degree, {
       onStart: (source, range) => {
         phaseRef.current = 'stream'
+        playRewriteSound(loadingSoundRef.current)
         setRewriteOperation(operation)
         setZoomPhase('stream')
         setHistoryMorph(false)
@@ -317,6 +335,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
         setDestText(full)
         setStreaming(false)
         setOverlayReady(true)
+        playRewriteSound(applySoundRef.current)
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
           phaseRef.current = 'review'
           setZoomPhase('review')
@@ -408,6 +427,10 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
 
   return (
     <>
+      <audio ref={keepSoundRef} src="/sounds/review-keep.wav" preload="auto" />
+      <audio ref={undoSoundRef} src="/sounds/review-undo.wav" preload="auto" />
+      <audio ref={applySoundRef} src="/sounds/review-apply.wav" preload="auto" />
+      <audio ref={loadingSoundRef} src="/sounds/rewrite-loading.wav" preload="auto" />
       <div
         className="document-zoom-slot flex justify-center"
         role="group"
