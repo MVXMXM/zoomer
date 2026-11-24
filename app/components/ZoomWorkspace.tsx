@@ -18,7 +18,10 @@ export function ZoomWorkspace() {
     <main className="document-workspace [overflow-anchor:none]">
       <div id="top" className="document-layout mx-auto [overflow-anchor:none]">
         <h1 className="sr-only">Zoomer</h1>
-        <ArticleContent initialContent={INITIAL_CONTENT} />
+        <ArticleContent
+          initialContent={INITIAL_CONTENT}
+          placeholder="Type or paste any text to apply semantic zoom"
+        />
         <DocumentFooter />
       </div>
     </main>

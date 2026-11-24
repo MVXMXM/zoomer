@@ -61,7 +61,13 @@ function getControlAnchor(editor: HTMLDivElement, width: number, height: number,
 
 type ZoomPhase = 'idle' | BlurPhase
 
-export function ArticleContent({ initialContent }: { initialContent: string }) {
+export function ArticleContent({
+  initialContent,
+  placeholder,
+}: {
+  initialContent: string
+  placeholder: string
+}) {
   const { height: controlHeight, selectionGap } = SELECTION_MENU_SETTINGS.shape
   const controlMenuRef = useRef<HTMLDivElement>(null)
   const {
@@ -96,10 +102,6 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
       setEditorSelection(editor, Math.min(content.length, selected.start), Math.min(content.length, selected.end))
     }
   }, [content, editorRef])
-
-  useLayoutEffect(() => {
-    if (placeholderRef.current) renderEditorDocument(placeholderRef.current, initialContent)
-  }, [initialContent])
 
   const [oldText, setOldText] = useState('')
   const [destText, setDestText] = useState('')
@@ -485,13 +487,16 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
             aria-hidden="true"
             hidden={Boolean(content) || overlayOpen}
             className="document-editor-scroll document-text pointer-events-none absolute inset-0 text-[20px] leading-relaxed text-(--slate-500)"
-          />
+          >
+            {placeholder}
+          </div>
 
           <div
             ref={editorRef}
             contentEditable={isLoading || overlayOpen ? false : 'plaintext-only'}
             role="textbox"
             aria-label="Document text"
+            aria-placeholder={placeholder}
             aria-multiline="true"
             aria-readonly={isLoading || overlayOpen}
             className={`document-editor-scroll document-text block h-full w-full text-[20px] leading-relaxed bg-transparent outline-none relative ${
