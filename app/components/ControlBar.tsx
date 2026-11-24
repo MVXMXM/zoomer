@@ -179,6 +179,7 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
         if (!event.isPrimary || event.button !== 0 || !(event.target instanceof Element)) return
         const ruler = event.target.closest<HTMLElement>('[role="slider"]')
         if (!ruler) return
+        if (event.pointerType === 'touch') event.preventDefault()
         event.stopPropagation()
         setDragging(true)
         ruler.setPointerCapture(event.pointerId)
@@ -190,7 +191,8 @@ function ZoomScale({ sourceWords, previousWords, previewWords, disabled, loading
         event.stopPropagation()
         const delta = gesture.x - event.clientX
         const distance = Math.abs(delta)
-        if (distance < 1 && !('dragging' in gesture.ruler.dataset)) return
+        const dragThreshold = event.pointerType === 'touch' ? 4 : 1
+        if (distance < dragThreshold && !('dragging' in gesture.ruler.dataset)) return
         const { ruler, scrollLeft, x } = gesture
         const bounds = ruler.getBoundingClientRect()
         const travel = delta < 0 ? bounds.right - x : x - bounds.left
@@ -595,6 +597,9 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
                       }}
                       onLostPointerCapture={(event) => {
                         if (event.target === event.currentTarget && pointerId.current === event.pointerId) clearDrag()
+                      }}
+                      onPointerCancel={(event) => {
+                        if (pointerId.current === event.pointerId) clearDrag()
                       }}
                     >
                       <span aria-hidden="true" className="zoom-slider-track">

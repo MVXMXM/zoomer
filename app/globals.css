@@ -206,6 +206,12 @@ body {
   background: color-mix(in srgb, var(--accent) 33%, transparent);
 }
 
+:is(.document-zoom-control, .selection-segments) {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .selection-segments {
   overflow: hidden;
   border-radius: 40px;
@@ -319,7 +325,7 @@ body {
 }
 
 .zoom-scale .maxos-slider-scale-ruler {
-  touch-action: pan-y pinch-zoom;
+  touch-action: none;
 }
 
 .zoom-scale .maxos-slider-scale-caption {
