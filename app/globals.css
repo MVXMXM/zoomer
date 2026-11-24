@@ -100,13 +100,14 @@ body {
 }
 
 .document-editor-scroll {
+  --document-scrollbar-thumb: color-mix(in srgb, var(--subtle) 75%, white);
   overflow: auto;
   padding-block: var(--document-text-padding-block);
   padding-inline: calc(var(--page-margin) + 1px - var(--document-scroll-inset));
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: var(--subtle) transparent;
+  scrollbar-color: var(--document-scrollbar-thumb) transparent;
 }
 
 @supports selector(::-webkit-scrollbar) {
@@ -127,7 +128,7 @@ body {
 
     .document-editor-scroll::-webkit-scrollbar-thumb {
       border-radius: 999px;
-      background: var(--subtle);
+      background: var(--document-scrollbar-thumb);
     }
 
     .document-editor-scroll::-webkit-scrollbar-corner {
