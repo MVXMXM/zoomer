@@ -1,4 +1,5 @@
 import { alignWords } from '@/app/lib/inlineDiff'
+import { inlineFormats, inlineRuns, type InlineRun } from '@/app/lib/editorDocument'
 import { tokenizeForLayout, type LayoutToken } from '@/app/lib/zoomLayout'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
 
@@ -11,10 +12,12 @@ export type ReviewWord = {
   newIndex: number | null
 }
 
+type ReviewToken = LayoutToken & { runs: InlineRun[] }
+
 export type ReviewLayout = {
   words: ReviewWord[]
-  beforeTokens: LayoutToken[]
-  afterTokens: LayoutToken[]
+  beforeTokens: ReviewToken[]
+  afterTokens: ReviewToken[]
   beforeLead: string
   afterLead: string
   diffLead: string
@@ -24,10 +27,22 @@ function tokenEnd(token: LayoutToken) {
   return token.start + token.text.length
 }
 
+export function formattedLayout(source: string) {
+  const { tokens, lead } = tokenizeForLayout(source)
+  const formats = inlineFormats(source)
+  return {
+    lead,
+    tokens: tokens.map((token) => ({
+      ...token,
+      runs: inlineRuns(source, formats, token.start, tokenEnd(token)),
+    })),
+  }
+}
+
 export function reviewLayout(before: string, after: string, range: RewriteRange | null): ReviewLayout {
   const bounds = range ?? { start: 0, end: before.length }
-  const beforeLayout = tokenizeForLayout(before)
-  const afterLayout = tokenizeForLayout(after)
+  const beforeLayout = formattedLayout(before)
+  const afterLayout = formattedLayout(after)
   const beforeTokens = beforeLayout.tokens
   const afterTokens = afterLayout.tokens
   const suffixChars = before.length - bounds.end

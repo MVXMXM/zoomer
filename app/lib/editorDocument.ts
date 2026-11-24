@@ -1,5 +1,7 @@
 const INLINE_MARKUP = /(\*\*|__|\*|_|~~|`)([^\n]+?)\1/g
-const FORMATS: Record<string, string> = {
+type InlineTag = 'strong' | 'em' | 's' | 'code'
+
+const FORMATS: Record<string, InlineTag> = {
   '**': 'strong',
   '__': 'strong',
   '*': 'em',
@@ -8,20 +10,46 @@ const FORMATS: Record<string, string> = {
   '`': 'code',
 }
 
+export type InlineRun = { text: string; tag?: InlineTag }
+
+export function inlineFormats(source: string) {
+  return Array.from(source.matchAll(INLINE_MARKUP), (match) => {
+    const [, marker, body] = match
+    const start = match.index
+    const bodyStart = start + marker.length
+    return { start, end: start + match[0].length, bodyStart, bodyEnd: bodyStart + body.length, tag: FORMATS[marker] }
+  })
+}
+
+export function inlineRuns(source: string, formats: ReturnType<typeof inlineFormats>, start: number, end: number): InlineRun[] {
+  const runs: InlineRun[] = []
+  let offset = start
+  for (const format of formats) {
+    if (format.end <= offset) continue
+    if (format.start >= end) break
+    if (offset < format.start) runs.push({ text: source.slice(offset, format.start) })
+    const from = Math.max(offset, format.bodyStart)
+    const to = Math.min(end, format.bodyEnd)
+    if (from < to) runs.push({ text: source.slice(from, to), tag: format.tag })
+    offset = format.end
+  }
+  if (offset < end) runs.push({ text: source.slice(offset, end) })
+  return runs
+}
+
 export function renderEditorDocument(editor: HTMLElement, source: string) {
   const fragment = document.createDocumentFragment()
   let offset = 0
-  for (const match of source.matchAll(INLINE_MARKUP)) {
-    const [, marker, body] = match
-    if (match.index > offset) fragment.append(source.slice(offset, match.index))
-    const formatted = document.createElement(FORMATS[marker])
+  for (const { start, end, bodyStart, bodyEnd, tag } of inlineFormats(source)) {
+    if (start > offset) fragment.append(source.slice(offset, start))
+    const formatted = document.createElement(tag)
     const opening = document.createElement('span')
     opening.hidden = true
-    opening.textContent = marker
+    opening.textContent = source.slice(start, bodyStart)
     const closing = opening.cloneNode(true)
-    formatted.append(opening, body, closing)
+    formatted.append(opening, source.slice(bodyStart, bodyEnd), closing)
     fragment.append(formatted)
-    offset = match.index + match[0].length
+    offset = end
   }
   if (offset < source.length) fragment.append(source.slice(offset))
   if (!source || source.endsWith('\n')) fragment.append(document.createElement('br'))

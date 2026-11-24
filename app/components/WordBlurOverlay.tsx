@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createElement, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RewriteRange } from '@/app/lib/rewriteClient'
-import { reviewLayout, type ReviewWord } from '@/app/lib/reviewLayout'
-import { pairWords, placeWords, tokenizeForLayout, wordHomes, type WordHome } from '@/app/lib/zoomLayout'
+import { inlineFormats, inlineRuns, type InlineRun } from '@/app/lib/editorDocument'
+import { formattedLayout, reviewLayout, type ReviewWord } from '@/app/lib/reviewLayout'
+import { pairWords, placeWords, wordHomes, type WordHome } from '@/app/lib/zoomLayout'
 import { LINE_HEIGHT } from '@/app/lib/zoomMetrics'
 
 export type BlurPhase = 'stream' | 'arrive' | 'review' | 'accept' | 'reject' | 'history'
@@ -13,6 +14,7 @@ type Role = 'same' | 'add' | 'del'
 type WordParticle = {
   id: string
   word: string
+  runs?: InlineRun[]
   x: number
   y: number
   tx: number
@@ -61,20 +63,25 @@ const TEXT_STYLE = {
   wordBreak: 'normal',
 } as const
 
+function renderRuns(runs: InlineRun[]) {
+  return runs.map(({ text, tag }, index) => tag ? createElement(tag, { key: index }, text) : text)
+}
+
 function StreamingSource({ text, range }: { text: string; range?: RewriteRange | null }) {
+  const formats = inlineFormats(text)
   if (!range) {
     return (
       <div className="text-shimmer text-[20px] whitespace-pre-wrap" style={TEXT_STYLE}>
-        {text}
+        {renderRuns(inlineRuns(text, formats, 0, text.length))}
       </div>
     )
   }
 
   return (
     <div className="text-foreground text-[20px] whitespace-pre-wrap" style={TEXT_STYLE}>
-      {text.slice(0, range.start)}
-      <span className="text-shimmer">{text.slice(range.start, range.end)}</span>
-      {text.slice(range.end)}
+      {renderRuns(inlineRuns(text, formats, 0, range.start))}
+      <span className="text-shimmer">{renderRuns(inlineRuns(text, formats, range.start, range.end))}</span>
+      {renderRuns(inlineRuns(text, formats, range.end, text.length))}
     </div>
   )
 }
@@ -229,7 +236,7 @@ export function WordBlurOverlay({
     }
 
     if (phase === 'stream' || newText.length === 0) {
-      const { tokens, lead } = tokenizeForLayout(oldText)
+      const { tokens, lead } = formattedLayout(oldText)
       const placed = placeWords(tokens, width, lead)
       particlesRef.current = tokens.map((token, index) => {
         const home = placed[index] ?? { x: 0, y: 0 }
@@ -249,7 +256,13 @@ export function WordBlurOverlay({
     const layout = reviewLayout(oldText, newText, focusRange ?? null)
     const beforePos = placeWords(layout.beforeTokens, width, layout.beforeLead)
     const afterPos = placeWords(layout.afterTokens, width, layout.afterLead)
-    const diffPos = placeWords(layout.words, width, layout.diffLead)
+    const diffWords = layout.words.map((word) => ({
+      ...word,
+      runs: word.newIndex !== null
+        ? layout.afterTokens[word.newIndex]?.runs
+        : word.oldIndex !== null ? layout.beforeTokens[word.oldIndex]?.runs : undefined,
+    }))
+    const diffPos = placeWords(diffWords, width, layout.diffLead)
     if (phase === 'arrive' || phase === 'review') {
       const lastLine = [beforePos, afterPos, diffPos].reduce(
         (bottom, positions) => positions.reduce((max, point) => Math.max(max, point.y), bottom),
@@ -257,13 +270,13 @@ export function WordBlurOverlay({
       )
       onReviewBottom(lastLine + LINE_HEIGHT)
     }
-    particlesRef.current = layout.words.map((word, index) => {
+    particlesRef.current = diffWords.map((word, index) => {
       const diff = diffPos[index] ?? { x: 0, y: 0 }
       const old = pointAt(beforePos, word.oldIndex, diff)
       const next = pointAt(afterPos, word.newIndex, diff)
       const prev = existing.get(word.id)
       const arrived = phase === 'arrive' && word.role === 'add'
-      return particle(
+      const item = particle(
         word.id,
         word.text,
         word.role,
@@ -272,6 +285,8 @@ export function WordBlurOverlay({
         reviewGoal(phase, word, diff, old, next),
         arrived ? { opacity: 0, blur: EXIT_BLUR, mark: 0 } : undefined,
       )
+      item.runs = phase === 'reject' && word.oldIndex !== null ? layout.beforeTokens[word.oldIndex]?.runs : word.runs
+      return item
     })
     if (reduced) snap(particlesRef.current)
     setTick((count) => count + 1)
@@ -359,7 +374,7 @@ export function WordBlurOverlay({
                 borderRadius: `${joinsPrevious ? 0 : 3}px ${joinsNext ? 0 : 3}px ${joinsNext ? 0 : 3}px ${joinsPrevious ? 0 : 3}px`,
               }}
             >
-              {item.word}
+              {item.runs ? renderRuns(item.runs) : item.word}
             </div>
           )
         })
