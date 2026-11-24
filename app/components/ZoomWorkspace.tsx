@@ -1,10 +1,15 @@
 import { ArticleContent } from '@/app/components/ArticleContent'
-import zoomerVersion from '@/zoomer-version.json'
 
-const INITIAL_CONTENT =
-  `Welcome to Zoomer (v${zoomerVersion.version}), a LLM toy to let you easily experiment with semantic zoom. ` +
-  'Highlight this text to reveal a control bar that allows you to zoom in (distill selected text to its irreducible simplicity) or zoom out (extrapolate selected text into a more exhaustive & thorough representation). ' +
-  'This app works like a word document, allowing you to type or paste any text you want to apply semantic zoom to.'
+const INITIAL_CONTENT = `**Welcome to Zoomer!**
+An LLM-powered text editor designed for *semantic zoom*.
+
+Just like controls on a map, you can quickly see your writing at different levels of representation. Slide the scale above to zoom the entire text, or highlight specific words to zoom only them.
+
+How it works:
+• Zoom in (microscope) distills towards irreducible simplicity
+• Zoom out (telescope) extrapolates towards exhaustive detail
+
+Replace this text with your own to zoom it!`
 
 export function ZoomWorkspace() {
   return (
