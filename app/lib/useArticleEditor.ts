@@ -19,8 +19,8 @@ function isAbortError(err: unknown) {
   return err instanceof Error && err.name === 'AbortError'
 }
 
-export function useArticleEditor(initialContent: string) {
-  const [content, setContent] = useState(initialContent)
+export function useArticleEditor() {
+  const [content, setContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
