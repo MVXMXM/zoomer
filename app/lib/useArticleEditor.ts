@@ -8,9 +8,12 @@ import {
   wordCount,
   type RewriteRange,
 } from '@/app/lib/rewriteClient'
+import { editorSelection, setEditorSelection } from '@/app/lib/editorDocument'
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
 const HISTORY_CAP = 20
+
+type HistoryEntry = { content: string; rewrite: boolean }
 
 function isAbortError(err: unknown) {
   return err instanceof Error && err.name === 'AbortError'
@@ -22,30 +25,34 @@ export function useArticleEditor(initialContent: string) {
   const [error, setError] = useState<string | null>(null)
   const [activeButton, setActiveButton] = useState<ZoomOperation | null>(null)
   const [hasSelection, setHasSelection] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
   const selectionRef = useRef<RewriteRange>({ start: 0, end: 0 })
   const [selectionWordCount, setSelectionWordCount] = useState(0)
   const contentRef = useRef(content)
-  const pastRef = useRef<string[]>([])
-  const futureRef = useRef<string[]>([])
+  const pastRef = useRef<HistoryEntry[]>([])
+  const futureRef = useRef<HistoryEntry[]>([])
+  const inputGroup = useRef<{ type: string; time: number } | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   contentRef.current = content
 
   useEffect(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    const end = textarea.value.length
-    textarea.setSelectionRange(end, end)
-    textarea.focus({ preventScroll: true })
+    const editor = editorRef.current
+    if (!editor) return
+    const end = editor.textContent?.length ?? 0
+    editor.focus({ preventScroll: true })
+    setEditorSelection(editor, end, end)
   }, [])
 
   const rememberSelection = useCallback(() => {
-    const el = textareaRef.current
+    const el = editorRef.current
     if (!el || document.activeElement !== el) return
-    const range = selectionRange(contentRef.current, el.selectionStart, el.selectionEnd)
-    selectionRef.current = range ?? { start: el.selectionStart, end: el.selectionStart }
+    const current = editorSelection(el)
+    if (!current) return
+    const source = el.textContent ?? ''
+    const range = selectionRange(source, current.start, current.end)
+    selectionRef.current = range ?? { start: current.start, end: current.start }
     setHasSelection(Boolean(range))
-    setSelectionWordCount(range ? wordCount(el.value.slice(range.start, range.end)) : 0)
+    setSelectionWordCount(range ? wordCount(source.slice(range.start, range.end)) : 0)
   }, [])
 
   const restoreContent = useCallback((text: string) => {
@@ -60,24 +67,40 @@ export function useArticleEditor(initialContent: string) {
     return true
   }, [])
 
-  const undo = useCallback((): { from: string; to: string } | null => {
-    const prev = pastRef.current[pastRef.current.length - 1]
-    if (prev === undefined) return null
+  const editContent = useCallback((text: string, inputType?: string) => {
+    const previous = contentRef.current
+    if (previous === text) return
+    const now = Date.now()
+    const group = inputGroup.current
+    if (!inputType || inputType !== group?.type || now - group.time > 750) {
+      pastRef.current = [...pastRef.current, { content: previous, rewrite: false }].slice(-HISTORY_CAP)
+    }
+    inputGroup.current = inputType ? { type: inputType, time: now } : null
+    futureRef.current = []
+    contentRef.current = text
+    setContent(text)
+  }, [])
+
+  const undo = useCallback(() => {
+    const prev = pastRef.current.at(-1)
+    if (!prev) return null
     const from = contentRef.current
-    futureRef.current = [...futureRef.current, from]
+    inputGroup.current = null
+    futureRef.current = [...futureRef.current, { content: from, rewrite: prev.rewrite }]
     pastRef.current = pastRef.current.slice(0, -1)
-    restoreContent(prev)
-    return { from, to: prev }
+    restoreContent(prev.content)
+    return { from, to: prev.content, rewrite: prev.rewrite }
   }, [restoreContent])
 
-  const redo = useCallback((): { from: string; to: string } | null => {
-    const next = futureRef.current[futureRef.current.length - 1]
-    if (next === undefined) return null
+  const redo = useCallback(() => {
+    const next = futureRef.current.at(-1)
+    if (!next) return null
     const from = contentRef.current
-    pastRef.current = [...pastRef.current, from].slice(-HISTORY_CAP)
+    inputGroup.current = null
+    pastRef.current = [...pastRef.current, { content: from, rewrite: next.rewrite }].slice(-HISTORY_CAP)
     futureRef.current = futureRef.current.slice(0, -1)
-    restoreContent(next)
-    return { from, to: next }
+    restoreContent(next.content)
+    return { from, to: next.content, rewrite: next.rewrite }
   }, [restoreContent])
 
   const handleRewrite = useCallback(
@@ -100,10 +123,9 @@ export function useArticleEditor(initialContent: string) {
 
       if (abortRef.current) return
 
-      const el = textareaRef.current
-      const live = el && document.activeElement === el
-        ? selectionRange(content, el.selectionStart, el.selectionEnd)
-        : null
+      const el = editorRef.current
+      const current = el && document.activeElement === el ? editorSelection(el) : null
+      const live = current ? selectionRange(content, current.start, current.end) : null
       const remembered = selectionRange(
         content,
         selectionRef.current.start,
@@ -126,7 +148,7 @@ export function useArticleEditor(initialContent: string) {
       setActiveButton(operation)
       setHasSelection(false)
       selectionRef.current = { start: 0, end: 0 }
-      textareaRef.current?.blur()
+      editorRef.current?.blur()
       hooks?.onStart?.(oldText, range)
 
       try {
@@ -153,7 +175,8 @@ export function useArticleEditor(initialContent: string) {
         }
         if (!result.trim()) throw new Error('Empty rewrite')
         const next = stitchRewrite(oldText, range, result)
-        pastRef.current = [...pastRef.current, oldText].slice(-HISTORY_CAP)
+        inputGroup.current = null
+        pastRef.current = [...pastRef.current, { content: oldText, rewrite: true }].slice(-HISTORY_CAP)
         futureRef.current = []
         setContent(next)
         hooks?.onEnd?.(next)
@@ -175,13 +198,13 @@ export function useArticleEditor(initialContent: string) {
 
   return {
     content,
-    setContent,
+    editContent,
     isLoading,
     error,
     activeButton,
     hasSelection,
     selectionWordCount,
-    textareaRef,
+    editorRef,
     rememberSelection,
     handleRewrite,
     abortRewrite,

@@ -8,6 +8,8 @@ import { zoomTargets } from '@/app/lib/zoomTargets'
 import { WordBlurOverlay, type BlurPhase } from '@/app/components/WordBlurOverlay'
 import { useArticleEditor } from '@/app/lib/useArticleEditor'
 import { useBoxWidth } from '@/app/lib/useBoxWidth'
+import { editorLineBreak, editorSelection, expandEditorRange, renderEditorDocument, setEditorSelection } from '@/app/lib/editorDocument'
+import { editorShortcut } from '@/app/lib/editorShortcuts'
 import { wordCount, type RewriteRange } from '@/app/lib/rewriteClient'
 import type { ZoomDegree, ZoomOperation } from '@/app/types/zoom'
 
@@ -19,67 +21,12 @@ type ControlAnchor = {
   placement: 'above' | 'below'
 }
 
-function getSelectionRects(textarea: HTMLTextAreaElement) {
-  const start = textarea.selectionStart
-  const end = textarea.selectionEnd
-  if (start === end) return []
-
-  const style = window.getComputedStyle(textarea)
-  const mirror = document.createElement('div')
-  const selection = document.createElement('span')
-  const rect = textarea.getBoundingClientRect()
-  const copiedProperties = [
-    'boxSizing',
-    'fontFamily',
-    'fontSize',
-    'fontStyle',
-    'fontWeight',
-    'letterSpacing',
-    'lineHeight',
-    'paddingTop',
-    'paddingRight',
-    'paddingBottom',
-    'paddingLeft',
-    'borderTopWidth',
-    'borderRightWidth',
-    'borderBottomWidth',
-    'borderLeftWidth',
-    'textAlign',
-    'textIndent',
-    'textTransform',
-    'wordSpacing',
-  ] as const
-
-  copiedProperties.forEach((property) => {
-    mirror.style[property] = style[property]
-  })
-  Object.assign(mirror.style, {
-    position: 'fixed',
-    visibility: 'hidden',
-    pointerEvents: 'none',
-    overflow: 'hidden',
-    whiteSpace: 'pre-wrap',
-    overflowWrap: style.overflowWrap,
-    wordBreak: style.wordBreak,
-    width: `${textarea.clientWidth}px`,
-    height: `${rect.height}px`,
-    left: `${rect.left - textarea.scrollLeft}px`,
-    top: `${rect.top - textarea.scrollTop}px`,
-  })
-
-  mirror.append(document.createTextNode(textarea.value.slice(0, start)))
-  selection.textContent = textarea.value.slice(start, end)
-  mirror.append(selection)
-  // Keep the last selected line measurable when the selection ends in a newline.
-  mirror.append(document.createTextNode('\u200b'))
-  document.body.append(mirror)
-  const rects = Array.from(selection.getClientRects())
-  mirror.remove()
-  return rects.filter((line) => line.bottom > rect.top && line.top < rect.bottom)
-}
-
-function getControlAnchor(textarea: HTMLTextAreaElement, width: number, height: number, gap: number): ControlAnchor | null {
-  const rects = getSelectionRects(textarea)
+function getControlAnchor(editor: HTMLDivElement, width: number, height: number, gap: number): ControlAnchor | null {
+  const selected = editorSelection(editor)
+  const viewport = editor.getBoundingClientRect()
+  const rects = selected && selected.start !== selected.end
+    ? Array.from(selected.range.getClientRects()).filter((rect) => rect.width && rect.bottom > viewport.top && rect.top < viewport.bottom)
+    : []
   if (!rects.length) return null
 
   const first = rects[0]
@@ -113,21 +60,23 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   const controlMenuRef = useRef<HTMLDivElement>(null)
   const {
     content,
-    setContent,
+    editContent,
     isLoading,
     error,
     activeButton,
     hasSelection,
     selectionWordCount,
-    textareaRef,
+    editorRef,
     rememberSelection,
     handleRewrite,
     abortRewrite,
     undo,
     redo,
   } = useArticleEditor(initialContent)
+  const pendingMarkup = useRef<{ source: string; offset: number; marker: string } | null>(null)
+  const placeholderRef = useRef<HTMLDivElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
-  const width = useBoxWidth(textareaRef)
+  const width = useBoxWidth(editorRef)
   const reviewScrollRef = useRef<HTMLDivElement>(null)
   const [editorHeight, setEditorHeight] = useState(0)
   useLayoutEffect(() => {
@@ -139,6 +88,19 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
     observer.observe(editor)
     return () => observer.disconnect()
   }, [])
+  useLayoutEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    const selected = editorSelection(editor)
+    if (renderEditorDocument(editor, content) && selected) {
+      setEditorSelection(editor, Math.min(content.length, selected.start), Math.min(content.length, selected.end))
+    }
+  }, [content, editorRef])
+
+  useLayoutEffect(() => {
+    if (placeholderRef.current) renderEditorDocument(placeholderRef.current, initialContent)
+  }, [initialContent])
+
   const [oldText, setOldText] = useState('')
   const [destText, setDestText] = useState('')
   const [overlayOpen, setOverlayOpen] = useState(false)
@@ -167,25 +129,76 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
     : undefined
 
   useLayoutEffect(() => {
-    if (overlayOpen && reviewScrollRef.current && textareaRef.current) {
-      reviewScrollRef.current.scrollTop = textareaRef.current.scrollTop
-      reviewScrollRef.current.scrollLeft = textareaRef.current.scrollLeft
+    if (overlayOpen && reviewScrollRef.current && editorRef.current) {
+      reviewScrollRef.current.scrollTop = editorRef.current.scrollTop
+      reviewScrollRef.current.scrollLeft = editorRef.current.scrollLeft
     }
-  }, [overlayOpen, textareaRef])
+  }, [overlayOpen, editorRef])
 
   const updateControlAnchor = useCallback(() => {
-    const textarea = textareaRef.current
-    if (!textarea || textarea.selectionStart === textarea.selectionEnd) return
+    const editor = editorRef.current
+    if (!editor) return
     const menu = controlMenuRef.current
     if (!menu) return
-    const nextAnchor = getControlAnchor(textarea, menu.offsetWidth, menu.offsetHeight, selectionGap)
+    const nextAnchor = getControlAnchor(editor, menu.offsetWidth, menu.offsetHeight, selectionGap)
     setControlAnchor(nextAnchor)
-  }, [textareaRef, selectionGap])
+  }, [editorRef, selectionGap])
 
   const handleSelectionChange = useCallback(() => {
     rememberSelection()
     updateControlAnchor()
   }, [rememberSelection, updateControlAnchor])
+
+  useEffect(() => {
+    document.addEventListener('selectionchange', handleSelectionChange)
+    return () => document.removeEventListener('selectionchange', handleSelectionChange)
+  }, [handleSelectionChange])
+
+  const replaceText = useCallback((editor: HTMLDivElement, start: number, end: number, text: string, anchor: number, head: number) => {
+    const source = editor.textContent ?? ''
+    const next = source.slice(0, start) + text + source.slice(end)
+    renderEditorDocument(editor, next)
+    setEditorSelection(editor, anchor, head)
+    editContent(next)
+    handleSelectionChange()
+  }, [editContent, handleSelectionChange])
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    const handleBeforeInput = (event: InputEvent) => {
+      if (!event.cancelable || event.isComposing) return
+      const selected = editorSelection(editor)
+      if (!selected) return
+      const source = editor.textContent ?? ''
+      if (event.inputType === 'insertParagraph' || event.inputType === 'insertLineBreak') {
+        event.preventDefault()
+        const bullet = editorShortcut(
+          { key: 'Enter', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, isComposing: false },
+          source,
+          selected.start,
+          selected.end,
+        )
+        if (bullet) {
+          replaceText(editor, bullet.start, bullet.end, bullet.text, bullet.selectionStart, bullet.selectionEnd)
+        } else {
+          const lineBreak = editorLineBreak(source, selected.start, selected.end)
+          replaceText(editor, lineBreak.start, lineBreak.end, lineBreak.text, lineBreak.caret, lineBreak.caret)
+        }
+        return
+      }
+      if (selected.start === selected.end) return
+      const { start, end } = expandEditorRange(source, selected.start, selected.end)
+      if (start === selected.start && end === selected.end) return
+      const text = event.inputType.startsWith('delete') ? '' : event.data
+      if (text === null) return
+      event.preventDefault()
+      const caret = start + text.length
+      replaceText(editor, start, end, text, caret, caret)
+    }
+    editor.addEventListener('beforeinput', handleBeforeInput)
+    return () => editor.removeEventListener('beforeinput', handleBeforeInput)
+  }, [editorRef, replaceText])
 
   useEffect(() => {
     if (!hasSelection || overlayOpen) return
@@ -226,13 +239,13 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
     setFocusRange(null)
     setReviewBottom(null)
     requestAnimationFrame(() => {
-      const textarea = textareaRef.current
-      if (!textarea) return
-      textarea.focus({ preventScroll: true })
-      if (scrollTop !== undefined) textarea.scrollTop = scrollTop
-      if (scrollLeft !== undefined) textarea.scrollLeft = scrollLeft
+      const editor = editorRef.current
+      if (!editor) return
+      editor.focus({ preventScroll: true })
+      if (scrollTop !== undefined) editor.scrollTop = scrollTop
+      if (scrollLeft !== undefined) editor.scrollLeft = scrollLeft
     })
-  }, [textareaRef])
+  }, [editorRef])
 
   const holdReview = useCallback(() => {
     if (phaseRef.current !== 'arrive') return
@@ -341,7 +354,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
         const step = redo()
         if (!step) return
         event.preventDefault()
-        playMorph(step.from, step.to)
+        if (step.rewrite) playMorph(step.from, step.to)
         return
       }
       if (key === 'z') {
@@ -352,7 +365,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
         const step = undo()
         if (!step) return
         event.preventDefault()
-        playMorph(step.from, step.to)
+        if (step.rewrite) playMorph(step.from, step.to)
         return
       }
 
@@ -425,31 +438,93 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
           )}
 
 
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={(e) => {
-              setContent(e.target.value)
-              handleSelectionChange()
-            }}
-            className={`document-editor-scroll block h-full w-full resize-none text-[20px] leading-relaxed bg-transparent border-none outline-none p-0 relative ${
+          <div
+            ref={placeholderRef}
+            aria-hidden="true"
+            hidden={Boolean(content) || overlayOpen}
+            className="document-editor-scroll document-text pointer-events-none absolute inset-0 text-[20px] leading-relaxed text-(--slate-500)"
+          />
+
+          <div
+            ref={editorRef}
+            contentEditable={isLoading || overlayOpen ? false : 'plaintext-only'}
+            role="textbox"
+            aria-label="Document text"
+            aria-multiline="true"
+            aria-readonly={isLoading || overlayOpen}
+            className={`document-editor-scroll document-text block h-full w-full text-[20px] leading-relaxed bg-transparent outline-none relative ${
               isLoading && !overlayReady && !focusRange ? 'text-shimmer' : 'text-foreground'
             }`}
             style={{
               caretColor: 'var(--accent)',
-              letterSpacing: '-0.01em',
-              whiteSpace: 'pre-wrap',
               overflowWrap: 'normal',
-              wordBreak: 'normal',
               opacity: overlayReady ? 0 : 1,
               pointerEvents: overlayOpen ? 'none' : 'auto',
               zIndex: 2,
             }}
-            placeholder="Type or paste text to apply semantic zoom"
-            disabled={isLoading || overlayOpen}
-            onSelect={handleSelectionChange}
-            onKeyUp={handleSelectionChange}
-            onMouseUp={handleSelectionChange}
+            onInput={(event) => {
+              const editor = event.currentTarget
+              const { inputType, data, isComposing } = event.nativeEvent as InputEvent
+              const pending = pendingMarkup.current
+              pendingMarkup.current = null
+              if (pending && data && inputType === 'insertText' && !isComposing) {
+                const { source, offset, marker } = pending
+                const unformatted = source.slice(0, offset) + data + source.slice(offset)
+                if (editor.textContent === unformatted) {
+                  const next = source.slice(0, offset) + marker + data + marker + source.slice(offset)
+                  const caret = offset + marker.length + data.length
+                  renderEditorDocument(editor, next)
+                  setEditorSelection(editor, caret, caret)
+                  editContent(next)
+                  handleSelectionChange()
+                  return
+                }
+              }
+              const group = inputType === 'insertText' || inputType === 'deleteContentBackward' ? inputType : undefined
+              editContent(editor.textContent ?? '', group)
+              handleSelectionChange()
+            }}
+            onKeyDown={(event) => {
+              const editor = event.currentTarget
+              const selected = editorSelection(editor)
+              if (!selected || event.nativeEvent.isComposing) return
+              const { start, end } = selected
+              const source = editor.textContent ?? ''
+              const edit = editorShortcut(event.nativeEvent, source, start, end)
+              if (edit) {
+                event.preventDefault()
+                if ((event.metaKey || event.ctrlKey) && edit.start === edit.end) {
+                  const marker = edit.text.slice(0, edit.selectionStart - edit.start)
+                  const pending = pendingMarkup.current
+                  pendingMarkup.current = pending?.offset === start && pending.marker === marker
+                    ? null
+                    : { source, offset: start, marker }
+                  return
+                }
+                pendingMarkup.current = null
+                replaceText(editor, edit.start, edit.end, edit.text, edit.selectionStart, edit.selectionEnd)
+              } else if (event.key === 'Enter' && !overlayOpen) {
+                pendingMarkup.current = null
+                event.preventDefault()
+                const lineBreak = editorLineBreak(source, start, end)
+                replaceText(editor, lineBreak.start, lineBreak.end, lineBreak.text, lineBreak.caret, lineBreak.caret)
+              } else if (event.key.startsWith('Arrow') || event.key === 'Escape') {
+                pendingMarkup.current = null
+              }
+            }}
+            onBlur={() => { pendingMarkup.current = null }}
+            onPointerDown={() => { pendingMarkup.current = null }}
+            onPaste={(event) => {
+              const editor = event.currentTarget
+              const selected = editorSelection(editor)
+              if (!selected) return
+              event.preventDefault()
+              const text = event.clipboardData.getData('text/plain').replace(/\r\n?/g, '\n')
+              const range = expandEditorRange(editor.textContent ?? '', selected.start, selected.end)
+              const caret = range.start + text.length
+              pendingMarkup.current = null
+              replaceText(editor, range.start, range.end, text, caret, caret)
+            }}
           />
 
           <ControlBar
