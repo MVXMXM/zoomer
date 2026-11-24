@@ -500,10 +500,10 @@ export function ControlBar({ sourceWords, previousWords, reviewTop, menuRef, inl
           {reviewing ? (
             <div className="segmented-controller" role="group" aria-label="Zoom result">
               <button type="button" className="segmented-controller-button" aria-keyshortcuts="Escape" onClick={review.onReject}>
-                Undo <Kbd aria-hidden="true">Esc</Kbd>
+                Undo <Kbd aria-hidden="true">esc</Kbd>
               </button>
               <button type="button" className="segmented-controller-button" aria-keyshortcuts="Enter" onClick={review.onAccept}>
-                Keep <Kbd aria-hidden="true">Enter</Kbd>
+                Keep <Kbd aria-hidden="true">enter</Kbd>
               </button>
             </div>
           ) : (
