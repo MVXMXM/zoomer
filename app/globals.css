@@ -122,7 +122,7 @@ body {
     }
 
     .document-editor-scroll::-webkit-scrollbar-track:vertical {
-      margin-block: 16px;
+      margin-block: 12px;
     }
 
     .document-editor-scroll::-webkit-scrollbar-thumb {
