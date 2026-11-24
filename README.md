@@ -6,9 +6,9 @@ Semantic zoom for text — expand or contract content while preserving meaning u
 
 ## Zoom Controls
 
-`(-) Zoom out` Extrapolate into exhaustive detail
+`(-) Zoom out` Distill to irreducible simplicity
 
-`(+) Zoom in` Distill to irreducible simplicity
+`(+) Zoom in` Extrapolate into exhaustive detail
 
 ## References
 

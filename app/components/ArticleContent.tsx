@@ -75,19 +75,9 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   } = useArticleEditor(initialContent)
   const pendingMarkup = useRef<{ source: string; offset: number; marker: string } | null>(null)
   const placeholderRef = useRef<HTMLDivElement>(null)
-  const boxRef = useRef<HTMLDivElement>(null)
+  const fadeRef = useRef<HTMLDivElement>(null)
   const width = useBoxWidth(editorRef)
   const reviewScrollRef = useRef<HTMLDivElement>(null)
-  const [editorHeight, setEditorHeight] = useState(0)
-  useLayoutEffect(() => {
-    const editor = boxRef.current
-    if (!editor) return
-    const measure = () => setEditorHeight(editor.clientHeight)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(editor)
-    return () => observer.disconnect()
-  }, [])
   useLayoutEffect(() => {
     const editor = editorRef.current
     if (!editor) return
@@ -125,7 +115,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   const [controlAnchor, setControlAnchor] = useState<ControlAnchor | null>(null)
   const [reviewBottom, setReviewBottom] = useState<number | null>(null)
   const reviewTop = keepReviewActions && reviewBottom !== null
-    ? Math.min(reviewBottom + selectionGap, Math.max(0, editorHeight - controlHeight))
+    ? `clamp(0px, calc(var(--document-text-padding-block) + ${reviewBottom + selectionGap}px), calc(100% - var(--document-text-padding-block) - ${controlHeight}px))`
     : undefined
 
   useLayoutEffect(() => {
@@ -134,6 +124,34 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
       reviewScrollRef.current.scrollLeft = editorRef.current.scrollLeft
     }
   }, [overlayOpen, editorRef])
+
+  useLayoutEffect(() => {
+    const scroll = reviewScrollRef.current ?? (content ? editorRef.current : placeholderRef.current)
+    const fade = fadeRef.current
+    if (!scroll || !fade) return
+
+    const update = () => {
+      const { clientWidth, clientHeight, offsetWidth, offsetHeight, scrollWidth, scrollHeight, scrollTop, scrollLeft } = scroll
+      const setFade = (edge: string, hidden: number, maxSize: number) => {
+        fade.style.setProperty(`--fade-${edge}`, `${Math.max(0, Math.min(hidden, maxSize))}px`)
+      }
+      setFade('top', scrollTop, 44)
+      setFade('bottom', scrollHeight - clientHeight - scrollTop, 44)
+      setFade('left', scrollLeft, 24)
+      setFade('right', scrollWidth - clientWidth - scrollLeft, 24)
+      fade.style.setProperty('--scrollbar-right', `${offsetWidth - clientWidth}px`)
+      fade.style.setProperty('--scrollbar-bottom', `${offsetHeight - clientHeight}px`)
+    }
+
+    update()
+    scroll.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(scroll)
+    return () => {
+      scroll.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
+  }, [content, editorRef, overlayOpen, reviewBottom, streaming, width])
 
   const updateControlAnchor = useCallback(() => {
     const editor = editorRef.current
@@ -314,6 +332,10 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
   // ⌘+ adds words, ⌘- subtracts them. = is the unshifted plus key.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && phaseRef.current === 'stream' && abortRewrite()) {
+        event.preventDefault()
+        return
+      }
       const withCmd = event.metaKey || event.ctrlKey
       if (zoomPhase === 'accept' || zoomPhase === 'reject') {
         const key = event.key.toLowerCase()
@@ -405,10 +427,7 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
         />
       </div>
       <div className="document-page">
-        <div
-          ref={boxRef}
-          className="document-editor relative [overflow-anchor:none]"
-        >
+        <div className="document-editor relative [overflow-anchor:none]">
           {overlayOpen && width > 0 && (
             <div
               ref={reviewScrollRef}
@@ -526,6 +545,8 @@ export function ArticleContent({ initialContent }: { initialContent: string }) {
               replaceText(editor, range.start, range.end, text, caret, caret)
             }}
           />
+
+          <div ref={fadeRef} className="document-overflow-fades" aria-hidden="true" />
 
           <ControlBar
             reviewTop={reviewTop}
