@@ -5,7 +5,7 @@ import "@mvxmxm/maxos/slider-scale.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Zoomer - Semantic Zoom for Text",
+  title: "Zoomer",
   description: "Expand or contract text while preserving meaning using AI-powered semantic zoom.",
   openGraph: {
     type: "website",

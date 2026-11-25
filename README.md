@@ -2,13 +2,16 @@
 
 ![Zoomer wordmark between a microscope and a telescope, above a zoom scale](app/opengraph-image.png)
 
-Semantic zoom for text — expand or contract content while preserving meaning using AI.
+Zoomer is an LLM-powered text editor designed for *semantic zoom*.
+
+Like zooming on a map, you can see your writing at different levels of detail. Move the slider to zoom the entire text, or highlight specific words to zoom only those words.
 
 ## Zoom Controls
 
-`(-) Zoom out` Distill to irreducible simplicity
+- **Zoom in (+, microscope)** extrapolates toward exhaustive detail.
+- **Zoom out (−, telescope)** distills toward irreducible simplicity.
 
-`(+) Zoom in` Extrapolate into exhaustive detail
+Replace the welcome text in the editor with your own to try it.
 
 ## References
 
