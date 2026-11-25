@@ -8,10 +8,8 @@ Like zooming on a map, you can see your writing at different levels of detail. M
 
 ## Zoom Controls
 
-- **Zoom in (+, microscope)** extrapolates toward exhaustive detail.
-- **Zoom out (−, telescope)** distills toward irreducible simplicity.
-
-Replace the welcome text in the editor with your own to try it.
+- `(+) Zoom in` extrapolates toward exhaustive detail.
+- `(-) Zoom out` distills toward irreducible simplicity.
 
 ## References
 
