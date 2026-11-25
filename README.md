@@ -1,4 +1,4 @@
-# Zoomer (v0.1.16)
+# Zoomer (v0.1.17)
 
 ![Zoomer wordmark between a microscope and a telescope, above a zoom scale](app/opengraph-image.png)
 
